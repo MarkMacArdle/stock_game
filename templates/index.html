@@ -44,8 +44,11 @@
     var score = 0;
     var gameOver = false;
     var scoreText;
-    var yMove = -0.2;
-    var xMove = -1;
+    var moveSpeedFactor = 75;
+    var yMove = 0; //will be updated for a stock later
+    var xMove = 0; //only move vertically for now
+    var minute_of_day = 0;
+
 
     function create ()
     {
@@ -65,7 +68,7 @@
         platforms.create(750, 220, 'ground');
 
         // The player and its settings
-        player = this.physics.add.sprite(100, 450, 'dude').setScale(2);
+        player = this.physics.add.sprite(275, 450, 'dude').setScale(2);
 
         //  Player physics properties. Give the little guy a slight bounce.
         //player.setBounce(0.2);
@@ -98,8 +101,8 @@
         //  Some stars to collect, 12 in total, evenly spaced 70 pixels apart along the x axis
         stars = this.physics.add.group({
             key: 'star',
-            repeat: 11,
-            setXY: { x: 12, y: 0, stepX: 70 }
+            repeat: 0,
+            setXY: { x: 275, y: 0, stepX: 70 }
         });
 
         stars.children.iterate(function (child) {
@@ -124,7 +127,7 @@
 
         //this.physics.add.collider(player, bombs, hitBomb, null, this);
 
-        timedEvent = this.time.addEvent({ delay: 1000, 
+        timedEvent = this.time.addEvent({ delay: 500, 
                                           callback: updateStockMovements, 
                                           callbackScope: this, 
                                           loop: true });
@@ -138,7 +141,9 @@
         }
 
         Phaser.Actions.IncX(bombs.getChildren(), xMove);
+        //console.log('pre inc Y:' + yMove)
         Phaser.Actions.IncY(bombs.getChildren(), yMove);
+        //console.log('after inc Y:' + yMove)
 
         if (cursors.left.isDown)
         {
@@ -162,14 +167,14 @@
         }
     }
 
-    var minute_of_day = 0;
     function updateStockMovements ()
     {
         $.ajax({
             url: "/quote",
             data: {"stock": "AAPL", "minute_of_day":minute_of_day},
-            success: function(response) {
-                console.log(response);
+            success: function(percentChange) {
+                // minus to get stocks moving up on screen when rising
+                yMove = -(parseFloat(percentChange) * moveSpeedFactor);
                 minute_of_day++;
             },
             error: function(xhr) {
@@ -198,7 +203,6 @@
 
             // Pick a position on the opposite side of the screen
             var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
-
             var bomb = bombs.create(x, 300, 'bomb');
             //bomb.setBounce(1);
             //bomb.setCollideWorldBounds(true);
