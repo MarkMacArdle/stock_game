@@ -26,9 +26,19 @@ def quote():
 
         if stock not in stock_changes_dict:
             print("not in dict")
-            stock_changes_dict[stock] = get_percent_changes(stock)
+            stock_changes_dict[stock] = get_day_data(stock)
 
-        #returning as a str instead of float as got a server error when returning the float
+        #get change
+        #if no trades happened average price will be -1 and not useable
+        if (minute_of_day == 0 
+            or stock_changes_dict[stock][minute_of_day]['volume'] == 0
+            or stock_changes_dict[stock][minute_of_day - 1]['volume'] == 0):
+            return str(0)
+        else:
+            return str(stock_changes_dict[stock][minute_of_day]['average']
+                       /stock_changes_dict[stock][minute_of_day - 1]['average'] - 1)
+
+        #returning as a str instead of float as got a server error when returning the float, not sure why.
         return str(stock_changes_dict[stock][minute_of_day])
 
 
@@ -40,9 +50,9 @@ def get_latest_valid_trading_date():
     return date_str
 
 
-# Function taken from CS50 Finance project's helper.py file.
-def get_percent_changes(symbol):
+def get_day_data(symbol):
     """Get minute by minute percent changes  for symbol for last trading day."""
+    # Function taken from CS50 Finance project's helper.py file.
 
     # Contact API
     try:
@@ -55,7 +65,7 @@ def get_percent_changes(symbol):
 
     # Parse response
     try:
-        return [x["changeOverTime"] if x["changeOverTime"] is not None else 0 for x in response.json()]
+        return response.json()
 
     except (KeyError, TypeError, ValueError):
         return None

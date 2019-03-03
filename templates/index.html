@@ -44,7 +44,7 @@
     var score = 0;
     var gameOver = false;
     var scoreText;
-    var moveSpeedFactor = 75;
+    var moveSpeedFactor = 500;
     var yMove = 0; //will be updated for a stock later
     var xMove = 0; //only move vertically for now
     var minute_of_day = 0;
@@ -112,7 +112,7 @@
 
         });
 
-        bombs = this.add.group();
+        bombs = this.physics.add.group();
 
         //  The score
         scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
@@ -125,9 +125,11 @@
         //  Checks to see if the player overlaps with any of the stars, if he does call the collectStar function
         this.physics.add.overlap(player, stars, collectStar, null, this);
 
+
+        this.physics.add.collider(player, bombs);
         //this.physics.add.collider(player, bombs, hitBomb, null, this);
 
-        timedEvent = this.time.addEvent({ delay: 500, 
+        timedEvent = this.time.addEvent({ delay: 1000, 
                                           callback: updateStockMovements, 
                                           callbackScope: this, 
                                           loop: true });
@@ -140,9 +142,12 @@
             return;
         }
 
-        Phaser.Actions.IncX(bombs.getChildren(), xMove);
+        //Phaser.Actions.IncX(bombs.getChildren(), xMove);
         //console.log('pre inc Y:' + yMove)
-        Phaser.Actions.IncY(bombs.getChildren(), yMove);
+        //Phaser.Actions.IncY(bombs.getChildren(), yMove);
+        
+        
+        console.log("ymove: " + yMove)
         //console.log('after inc Y:' + yMove)
 
         if (cursors.left.isDown)
@@ -175,6 +180,8 @@
             success: function(percentChange) {
                 // minus to get stocks moving up on screen when rising
                 yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+                this.bombs.y += yMove;
+                console.log("minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", yMove)
                 minute_of_day++;
             },
             error: function(xhr) {
@@ -191,26 +198,28 @@
         score += 10;
         scoreText.setText('Score: ' + score);
 
-        // This will only run when all the stars have been collected
-        if (stars.countActive(true) === 0)
-        {
-            //  A new batch of stars to collect
-            stars.children.iterate(function (child) {
 
-                child.enableBody(true, child.x, 0, true, true);
+        // Pick a position on the opposite side of the screen
+        //var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+        //var bomb = bombs.create(x, 300, 'bomb');
+        //this.physics.add.collider(player, bomb);
+        //bomb.setBounce(1);
+        //bomb.setCollideWorldBounds(true);
+        //bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+        //bomb.allowGravity = false;
 
-            });
+        var bomb = this.physics.add.image(400, 200, 'bomb')
+            .setFriction(1, 1)
+            .setImmovable(true);
 
-            // Pick a position on the opposite side of the screen
-            var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
-            var bomb = bombs.create(x, 300, 'bomb');
-            //bomb.setBounce(1);
-            //bomb.setCollideWorldBounds(true);
-            //bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
-            //bomb.allowGravity = false;
+            bomb.body.allowGravity = false;
+            bomb.body.moves = false;
+        
+        this.physics.add.collider(player, bomb);
 
-        }
+        
     }
+
 
     function hitBomb (player, bomb)
     {
