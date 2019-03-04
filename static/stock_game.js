@@ -99,9 +99,9 @@ gameScene.create = function() {
       stepY: 20
     }
   });
+  
   Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.5, -0.5);
 
-  // set speeds
   Phaser.Actions.Call(this.enemies.getChildren(), function(enemy) {
     enemy.body.allowGravity = false;
     enemy.body.moves = false;
