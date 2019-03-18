@@ -11,7 +11,6 @@ with open("static/assets/nasdaq_100_stock_list.csv") as f:
     for row in data:
         png_filename = row[0] + ".png"
 
-        url = "http://craphound.com/images/1006884_2adf8fc7.jpg"
         response = requests.get(url_start + png_filename)
 
         if response.status_code == 200:
