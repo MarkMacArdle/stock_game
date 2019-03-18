@@ -2,6 +2,7 @@ var moveSpeedFactor = 1000;
 var yMove = 0; //will be updated for a stock later
 var xMove = 0; //only move vertically for now
 var minute_of_day = 0;
+var activated_stocks = {};
 
 function updateStockMovements ()
 {
@@ -36,9 +37,13 @@ gameScene.preload = function() {
   this.load.image('ground', '/static/assets/platform.png');
   this.load.spritesheet('dude', '/static/assets/dude.png', { frameWidth: 32, frameHeight: 48 });
 
+  
+
   this.load.image('player', '/static/assets/player.png');
   this.load.image('dragon', '/static/assets/dragon.png');
   this.load.image('treasure', '/static/assets/treasure.png');
+
+
 
 };
 
@@ -90,7 +95,7 @@ gameScene.create = function() {
 
   // group of enemies
   this.enemies = this.physics.add.group({
-    key: 'dragon',
+    key: 'AAPL',
     repeat: 5,
     setXY: {
       x: 110,
