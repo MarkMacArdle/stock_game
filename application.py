@@ -4,12 +4,14 @@ from datetime import date, timedelta
 from os import listdir
 import requests
 import urllib.parse
+from threading import Thread
 
 # Configure application
 app = Flask(__name__)
 
-stock_changes_dict = {}
 latest_valid_date_str = ''
+stocks = {}
+
 
 @app.route("/")
 def index():
@@ -18,83 +20,69 @@ def index():
 
 @app.route("/stocks_and_logos", methods=["GET", "POST"])
 def stocks_and_logos():
-    """Return a dict of the stocks and their logo pic filename"""
-    print("stocks_and_logos() called")
-    stocks_and_logos_dict = {i.split(".")[0]:i for i in listdir("static/assets/stock_logos")}
-    return jsonify(stocks_and_logos_json = stocks_and_logos_dict)
+    """Return a dict of the stocks and their logo pic filename (eg {'AAPL': 'AAPL.png', etc}"""
+
+    return jsonify(stocks_and_logos_json = {i:stocks[i]['logo'] for i in stocks})
 
 
-@app.route("/quote", methods=["GET", "POST"])
+@app.route("/quote", methods=["GET"])
 def quote():
-    """Return stock quote."""
+    """Return percentage change for a stock in a given minute."""
 
     if request.method == "GET":
         stock = request.args.get('stock')
-        print("stock:" + stock)
         minute_of_day = int(request.args.get('minute_of_day'))
 
-        if stock not in stock_changes_dict:
-            print("not in dict")
-            stock_changes_dict[stock] = get_day_data(stock)
-
-        #get change
-        #if no trades happened average price will be -1 and not useable
+        #get change by dividing current minutes stock price by previous minute
+        #for first minute of day (minute 0) there's no previous price so just return 0
+        #if no trades (volume) happened average price will be -1 and not useable
+        #need to check previous minute's volume too as don't want to divide by -1 either
         if (minute_of_day == 0 
-            or stock_changes_dict[stock][minute_of_day]['volume'] == 0
-            or stock_changes_dict[stock][minute_of_day - 1]['volume'] == 0):
+            or minute_of_day > 389 #only 390 minutes in a trading day
+            or stocks[stock]['day_data'][minute_of_day]['volume'] == 0
+            or stocks[stock]['day_data'][minute_of_day - 1]['volume'] == 0):
             return str(0)
         else:
-            return str(stock_changes_dict[stock][minute_of_day]['average']
-                       /stock_changes_dict[stock][minute_of_day - 1]['average'] - 1)
+            return str(stocks[stock]['day_data'][minute_of_day]['average']
+                       / stocks[stock]['day_data'][minute_of_day - 1]['average'] - 1)
 
         #returning as a str instead of float as got a server error when returning the float, not sure why.
-        return str(stock_changes_dict[stock][minute_of_day])
+        return str(stocks[stock]['day_data'][minute_of_day])
 
 
 def get_latest_valid_trading_date():
+    #loop back through last 100 days until a valid date is found
+    #just chose 100 out of the air as expect to find a valid date by then
     for i in range(100):
         date_str = (date.today() - timedelta(days=i)).strftime("%Y%m%d")
-        if requests.get("https://api.iextrading.com/1.0/stock/aapl/chart/date/" + date_str).json() != []:
+        date_data = requests.get("https://api.iextrading.com/1.0/stock/aapl/chart/date/" + date_str).json()
+
+        #iex api returns empty list for non trading days
+        #390 requirement for 390 minutes in a full trading day (wall street trading hours are 09.30 to 16.00)
+        #iex starts returning partial days in the middle of a trading day
+        if date_data != [] and len(date_data) == 390:
             break
     return date_str
 
 
-def get_day_data(symbol):
-    """Get minute by minute percent changes  for symbol for last trading day."""
-    # Function taken from CS50 Finance project's helper.py file.
+def get_day_data(stock):
+    """Get minute by minute percent changes for symbol for last trading day."""
+
+    # Function modified from CS50 Finance project's helper.py file.
 
     # Contact API
     try:
-        print("latest_valid_date_str: " + latest_valid_date_str)
-        print(f"https://api.iextrading.com/1.0/stock/{urllib.parse.quote_plus(symbol)}/chart/date/{latest_valid_date_str}")
-        response = requests.get(f"https://api.iextrading.com/1.0/stock/{urllib.parse.quote_plus(symbol)}/chart/date/{latest_valid_date_str}")
+        url = f"https://api.iextrading.com/1.0/stock/{urllib.parse.quote_plus(stock)}/chart/date/{latest_valid_date_str}"
+        print(url)
+        response = requests.get(url)
         response.raise_for_status()
     except requests.RequestException:
         return None
 
     # Parse response
     try:
-        return response.json()
-
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-# Function taken from CS50 Finance project's helper.py file.
-def lookup(symbol):
-    """Look up quote for symbol."""
-
-    # Contact API
-    try:
-        response = requests.get(f"https://api.iextrading.com/1.0/stock/{urllib.parse.quote_plus(symbol)}/quote")
-        response.raise_for_status()
-    except requests.RequestException:
-        return None
-
-    # Parse response
-    try:
-        quote = response.json()
-        return float(quote["latestPrice"])
+        stocks[stock]['day_data'] = response.json()
+        return 
 
     except (KeyError, TypeError, ValueError):
         return None
@@ -102,8 +90,33 @@ def lookup(symbol):
 
 
 if __name__ == '__main__':
-    latest_valid_date_str = get_latest_valid_trading_date()
 
-    app.debug = True
-    app.run()
+    latest_valid_date_str = get_latest_valid_trading_date()
+    stocks_and_logos_dict = {i.split(".")[0]:i for i in listdir("static/assets/stock_logos")}
+
+    #api data will be fetched in parallel on threads
+    #how to use threads taken from https://www.shanelynn.ie/using-python-threading-for-multiple-results-queue/
+    threads = []
+
+    #get data on all stocks that there is a logo for
+    for stock_logo_pic in listdir("static/assets/stock_logos"):
+        stock = stock_logo_pic.split(".")[0]
+
+        #on_screen will be flipped as stocks appear and are removed from game screen
+        stocks[stock] = {'day_data': {},
+                         'logo': stock_logo_pic,
+                         'on_screen': False}
+
+        process = Thread(target=get_day_data, args=[stock])
+        process.start()
+        threads.append(process)
+
+    #threads will only join when they have finished so this makes main thread
+    #wait for everything to finish before progressing
+    for process in threads:
+        process.join()
+
+
     app.run(debug = True)
+
+
