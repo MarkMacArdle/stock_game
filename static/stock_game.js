@@ -6,19 +6,19 @@ var activated_stocks = {};
 
 function updateStockMovements ()
 {
-    $.ajax({
-        url: "/quote",
-        data: {"stock": "AAPL", "minute_of_day":minute_of_day},
-        success: function(percentChange) {
-            // minus to get stocks moving up on screen when rising
-            yMove = -(parseFloat(percentChange) * moveSpeedFactor);
-            console.log("minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", yMove)
-            minute_of_day++;
-        },
-        error: function(xhr) {
-            //Do Something to handle error
-        }
-    });
+  $.ajax({
+    url: "/quote",
+    data: {"stock": "AAPL", "minute_of_day":minute_of_day},
+    success: function(percentChange) {
+      // minus to get stocks moving up on screen when rising
+      yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+      console.log("minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", yMove)
+      minute_of_day++;
+    },
+    error: function(xhr) {
+      //Do Something to handle error
+    }
+  });
 }
 
 
@@ -37,11 +37,36 @@ gameScene.preload = function() {
   this.load.image('ground', '/static/assets/platform.png');
   this.load.spritesheet('dude', '/static/assets/dude.png', { frameWidth: 32, frameHeight: 48 });
 
-  
+  this.load.image('dragon', '/static/assets/AAL.png');
+
+  //load the logos
+  $.ajax({
+    url: "/stocks_and_logos",
+    async: false, 
+    success: function(json) {
+      //don't know why but json we want is nested inside returned object
+      stocks_and_logos_json = json["stocks_and_logos_json"]
+
+      //load all the logo images
+      for (var key in stocks_and_logos_json) {
+        //.hasOwnProperty() needed as a json has meta attributes with key-value 
+        //pairs too but don't want to loop over them. From here:
+        //https://stackoverflow.com/questions/684672/how-do-i-loop-through-or-enumerate-a-javascript-object
+        if (stocks_and_logos_json.hasOwnProperty(key)) {
+          path = '/static/assets/stock_logos/' + stocks_and_logos_json[key];
+          console.log('loading: key:' + key + ', path:' + path);
+          gameScene.load.image(key, path);
+        };
+      };
+
+    },
+    error: function(xhr) {
+      //Do Something to handle error
+    }
+  });
 
   this.load.image('player', '/static/assets/player.png');
-  this.load.image('dragon', '/static/assets/dragon.png');
-  this.load.image('treasure', '/static/assets/treasure.png');
+  this.load.image('treasure', '/static/assets/stock_logos/AAL.png');
 
 
 

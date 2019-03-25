@@ -1,6 +1,7 @@
 from flask import Flask, flash, jsonify, redirect, render_template, request, session
 from flask_session import Session
 from datetime import date, timedelta
+from os import listdir
 import requests
 import urllib.parse
 
@@ -13,6 +14,14 @@ latest_valid_date_str = ''
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/stocks_and_logos", methods=["GET", "POST"])
+def stocks_and_logos():
+    """Return a dict of the stocks and their logo pic filename"""
+    print("stocks_and_logos() called")
+    stocks_and_logos_dict = {i.split(".")[0]:i for i in listdir("static/assets/stock_logos")}
+    return jsonify(stocks_and_logos_json = stocks_and_logos_dict)
 
 
 @app.route("/quote", methods=["GET", "POST"])
