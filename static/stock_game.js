@@ -1,24 +1,31 @@
 var moveSpeedFactor = 1000;
-var yMove = 0; //will be updated for a stock later
 var xMove = 0; //only move vertically for now
 var minute_of_day = 0;
 var activated_stocks = {};
 
-function updateStockMovements ()
+function updateStockMovements()
 {
-  $.ajax({
-    url: "/quote",
-    data: {"stock": "AAPL", "minute_of_day":minute_of_day},
-    success: function(percentChange) {
-      // minus to get stocks moving up on screen when rising
-      yMove = -(parseFloat(percentChange) * moveSpeedFactor);
-      console.log("minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", yMove)
-      minute_of_day++;
-    },
-    error: function(xhr) {
-      //Do Something to handle error
-    }
-  });
+
+// enemy movement and collision
+  let enemies = gameScene.enemies.getChildren();
+  let numEnemies = enemies.length;
+
+  for (let i = 0; i < numEnemies; i++) {
+    $.ajax({
+      url: "/quote",
+      data: {"stock": enemies[i].name, "minute_of_day": minute_of_day},
+      success: function(percentChange) {
+        // minus to get stocks moving up on screen when rising
+        enemies[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+        console.log("stock:", enemies[i].name, "minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", enemies[i].yMove);
+      },
+      error: function(xhr) {
+        //Do Something to handle error
+      }
+    });
+  }
+
+  minute_of_day++
 }
 
 
@@ -37,12 +44,10 @@ gameScene.preload = function() {
   this.load.image('ground', '/static/assets/platform.png');
   this.load.spritesheet('dude', '/static/assets/dude.png', { frameWidth: 32, frameHeight: 48 });
 
-  this.load.image('dragon', '/static/assets/AAL.png');
-
   //load the logos
   $.ajax({
     url: "/stocks_and_logos",
-    async: false, 
+    async: false, //false as want to be sure all images load in this preload section
     success: function(json) {
       //don't know why but json we want is nested inside returned object
       stocks_and_logos_json = json["stocks_and_logos_json"]
@@ -58,7 +63,6 @@ gameScene.preload = function() {
           gameScene.load.image(key, path);
         };
       };
-
     },
     error: function(xhr) {
       //Do Something to handle error
@@ -71,6 +75,8 @@ gameScene.preload = function() {
 
 
 };
+
+
 
 // executed once, after assets were loaded
 gameScene.create = function() {
@@ -119,16 +125,38 @@ gameScene.create = function() {
   this.treasure.setScale(0.6);
 
   // group of enemies
-  this.enemies = this.physics.add.group({
-    key: 'AAPL',
-    repeat: 5,
-    setXY: {
-      x: 110,
-      y: 100,
-      stepX: 80,
-      stepY: 20
-    }
-  });
+  this.enemies = this.physics.add.group();
+
+
+  //create 4 new stock symbols
+  for (var i = 0; i < 4; i++) {
+
+
+    //get a stock that isn't currently on screen
+    $.ajax({
+      url: "/next_stock",
+      success: function(stock) {
+
+        var x = Phaser.Math.Between(50, gameScene.sys.game.config.width - 50)
+        var y = Phaser.Math.Between(100, gameScene.sys.game.config.height - 100)
+
+        console.log("creating stock:", stock, 'at x:', x, 'y:', y);
+        enemy = gameScene.enemies.create(x, y, stock);
+        console.log("after stock create for:", stock);
+
+        enemy.body.allowGravity = false;
+        enemy.body.moves = false;
+        enemy.velocityY = 0;
+        enemy.setFriction(1, 1);
+        enemy.setImmovable(true);
+        enemy.yMove = 0;
+        enemy.name = stock;
+        console.log('tried to assign:', stock, 'to enemy.name:', enemy.name)
+        console.log('tried to assign:', 5, 'to enemy.yMove:', enemy.yMove)
+      }
+    });
+  };
+  
   
   Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.5, -0.5);
 
@@ -152,11 +180,13 @@ gameScene.create = function() {
   this.cameras.main.resetFX();
 
   //change stock prices
-  timedEvent = this.time.addEvent({ delay: 1000, 
-                                  callback: updateStockMovements, 
-                                  callbackScope: this, 
-                                  loop: true });
+  timedEvent = this.time.addEvent({delay: 500, 
+                                   callback: updateStockMovements, 
+                                   callbackScope: this, 
+                                   loop: true});
 };
+
+
 
 // executed on every frame (60 times per second)
 gameScene.update = function() {
@@ -203,7 +233,7 @@ gameScene.update = function() {
     //enemies[i].speed = yMove;
     enemies[i].allowGravity = false;
     enemies[i].velocityY = 0;
-    enemies[i].y += yMove;
+    enemies[i].y += enemies[i].yMove;
 
     // enemy collision
     //if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {

@@ -5,6 +5,7 @@ from os import listdir
 import requests
 import urllib.parse
 from threading import Thread
+from random import choice
 
 # Configure application
 app = Flask(__name__)
@@ -37,7 +38,7 @@ def quote():
         #for first minute of day (minute 0) there's no previous price so just return 0
         #if no trades (volume) happened average price will be -1 and not useable
         #need to check previous minute's volume too as don't want to divide by -1 either
-        if (minute_of_day == 0 
+        if (minute_of_day <= 0 
             or minute_of_day > 389 #only 390 minutes in a trading day
             or stocks[stock]['day_data'][minute_of_day]['volume'] == 0
             or stocks[stock]['day_data'][minute_of_day - 1]['volume'] == 0):
@@ -48,6 +49,26 @@ def quote():
 
         #returning as a str instead of float as got a server error when returning the float, not sure why.
         return str(stocks[stock]['day_data'][minute_of_day])
+
+
+@app.route("/next_stock", methods=["GET", "POST"])
+def next_stock():
+    """Return a random stock that isn't already on screen."""
+    chosen_stock = choice([i for i in stocks if not stocks[i]['on_screen']])
+    stocks[chosen_stock]['on_screen'] = True
+    return chosen_stock
+    
+
+
+@app.route("/off_screened_stock", methods=["GET"])
+def off_screened_stock():
+    """Change stock's on_screen boolean to false"""
+
+    if request.method == "GET":
+        stock = request.args.get('stock')
+        stocks[stock]['on_screen'] = False
+    return 
+
 
 
 def get_latest_valid_trading_date():
