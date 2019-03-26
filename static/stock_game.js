@@ -68,7 +68,6 @@ function display_new_stock(stock){
 
   enemy.name = stock;
   enemy.yMove = 0;
-  enemy.setScale = 0.5;
   gameScene.physics.add.collider(enemy, platforms);
 
   //options that stop stocks falling down due to gravity
@@ -114,8 +113,6 @@ gameScene.preload = function() {
   this.load.image('player', '/static/assets/player.png');
   this.load.image('treasure', '/static/assets/stock_logos/AAL.png');
 
-
-
 };
 
 
@@ -123,18 +120,23 @@ gameScene.preload = function() {
 // executed once, after assets were loaded
 gameScene.create = function() {
 
-  // background
-  let bg = this.add.sprite(0, 0, 'background');
-  bg.setOrigin(0, 0);
-
-
   //allow camera to scroll up, but not past start downward or sideways past width of game
-  //this.cameras.main.setPosition(0,0);
   this.cameras.main.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
   this.physics.world.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
 
-  // reset camera
-  this.cameras.main.resetFX();
+  // reset camera, think would only be used to reset fade/shake effects from game over screen
+  //this.cameras.main.resetFX();
+
+  //background color will only be seen if users scroll past tiles
+  this.cameras.main.setBackgroundColor('#33B8FF') //#33B8FF is a light blue color
+
+  // background
+  //create 200 tiles stacked on top of each other, figure users will never get above that
+  var bg_height = 600;
+  for (var i=0; i < 200; i++){
+    //flip images in Y for every odd i so they blend into each other
+    this.add.image(0, -bg_height * i, 'background').setOrigin(0).setFlipY(i%2!=0);
+  };
 
   //  Here we create the ground.
   platforms = this.physics.add.staticGroup();
@@ -168,13 +170,15 @@ gameScene.create = function() {
     repeat: -1
   });
 
+  // player is alive
+  this.isPlayerAlive = true;
+
   //  Input Events
   cursors = this.input.keyboard.createCursorKeys();
 
   // goal
   this.treasure = this.add.sprite(game_width - 80, game_height / 2, 'treasure');
   this.treasure.setScale(0.6);
-
 
   // group of enemies
   this.enemies = this.physics.add.group();
@@ -193,9 +197,6 @@ gameScene.create = function() {
   //Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.4, -0.4);
 
   this.physics.add.collider(player, this.enemies);
-
-  // player is alive
-  this.isPlayerAlive = true;
 
   //have camera follow player
   this.cameras.main.startFollow(player, true, 0.05, 0.05);  
