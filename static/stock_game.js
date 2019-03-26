@@ -1,3 +1,5 @@
+var time_limit = 390; //only 390 minutes in a trading day
+var stocks_on_screen_at_once = 4;
 var moveSpeedFactor = 1000;
 var xMove = 0; //only move vertically for now
 var minute_of_day = 0;
@@ -26,6 +28,9 @@ function updateStockMovements()
   }
 
   minute_of_day++
+  if (minute_of_day >= 390){
+    gameScene.gameOver()
+  }
 }
 
 
@@ -37,6 +42,7 @@ let gameScene = new Phaser.Scene('Game');
 gameScene.init = function() {
   this.playerSpeed = 1.5;
 }
+
 
 // load asset files for our game
 gameScene.preload = function() {
@@ -124,14 +130,12 @@ gameScene.create = function() {
   this.treasure = this.add.sprite(this.sys.game.config.width - 80, this.sys.game.config.height / 2, 'treasure');
   this.treasure.setScale(0.6);
 
+
   // group of enemies
   this.enemies = this.physics.add.group();
 
-
   //create 4 new stock symbols
-  for (var i = 0; i < 4; i++) {
-
-
+  for (var i = 0; i < stocks_on_screen_at_once; i++) {
     //get a stock that isn't currently on screen
     $.ajax({
       url: "/next_stock",
@@ -140,35 +144,33 @@ gameScene.create = function() {
         var x = Phaser.Math.Between(50, gameScene.sys.game.config.width - 50)
         var y = Phaser.Math.Between(100, gameScene.sys.game.config.height - 100)
 
-        console.log("creating stock:", stock, 'at x:', x, 'y:', y);
         enemy = gameScene.enemies.create(x, y, stock);
-        console.log("after stock create for:", stock);
 
+        enemy.name = stock;
+        enemy.yMove = 0;
+        gameScene.physics.add.collider(enemy, platforms);
+
+        //options that stop stocks falling down due to gravity
         enemy.body.allowGravity = false;
         enemy.body.moves = false;
-        enemy.velocityY = 0;
+        enemy.body.velocity.y = 0;
         enemy.setFriction(1, 1);
         enemy.setImmovable(true);
-        enemy.yMove = 0;
-        enemy.name = stock;
-        console.log('tried to assign:', stock, 'to enemy.name:', enemy.name)
-        console.log('tried to assign:', 5, 'to enemy.yMove:', enemy.yMove)
       }
     });
   };
   
-  
   Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.5, -0.5);
 
-  Phaser.Actions.Call(this.enemies.getChildren(), function(enemy) {
-    enemy.body.allowGravity = false;
-    enemy.body.moves = false;
-    enemy.setFriction(1, 1)
-    enemy.setImmovable(true);
-
-    //enemy.setCollideWorldBounds(true);
-    this.physics.add.collider(enemy, platforms);
-  }, this);
+//  Phaser.Actions.Call(this.enemies.getChildren(), function(enemy) {
+//    enemy.body.allowGravity = false;
+//    enemy.body.moves = false;
+//   enemy.setFriction(1, 1)
+//    enemy.setImmovable(true);
+//
+//    //enemy.setCollideWorldBounds(true);
+//    this.physics.add.collider(enemy, platforms);
+//  }, this);
 
 
   this.physics.add.collider(player, this.enemies);
@@ -179,7 +181,7 @@ gameScene.create = function() {
   // reset camera
   this.cameras.main.resetFX();
 
-  //change stock prices
+  //function that will update stock movements
   timedEvent = this.time.addEvent({delay: 500, 
                                    callback: updateStockMovements, 
                                    callbackScope: this, 
@@ -218,6 +220,13 @@ gameScene.update = function() {
     player.setVelocityY(-500);
   }
 
+  //allow players speed up their fall by holding the down button
+  if (cursors.down.isDown && !player.body.touching.down)
+  {
+    //increase their existing velocity
+    player.setVelocityY(player.body.velocity.y + 15);
+  }
+
   // treasure collision
   if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), this.treasure.getBounds())) {
     this.gameOver();
@@ -232,7 +241,13 @@ gameScene.update = function() {
     // move enemies
     //enemies[i].speed = yMove;
     enemies[i].allowGravity = false;
-    enemies[i].velocityY = 0;
+    enemies[i].body.velocity.y = 0;
+
+    //if a player is on this stock move them with it
+    if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {
+      player.y += enemies[i].yMove;
+    };
+    
     enemies[i].y += enemies[i].yMove;
 
     // enemy collision
@@ -258,6 +273,7 @@ gameScene.gameOver = function() {
 
   // restart game
   this.time.delayedCall(500, function() {
+    minute_of_day = 0;
     this.scene.restart();
   }, [], this);
 };
@@ -273,7 +289,7 @@ let config = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 300 },
+      gravity: { y: 500 },
       debug: false
     }
   }
