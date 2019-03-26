@@ -3,7 +3,37 @@ var stocks_on_screen_at_once = 4;
 var moveSpeedFactor = 1000;
 var xMove = 0; //only move vertically for now
 var minute_of_day = 0;
-var activated_stocks = {};
+var game_width = 800;
+var game_height = 660;
+var game_max_height = -99999;
+var game_bottom = game_height; //will be reset in update function as player rises
+
+
+// create a new scene named "Game"
+let gameScene = new Phaser.Scene('Game');
+
+// some parameters for our scene
+gameScene.init = function() {
+  this.playerSpeed = 1.5;
+}
+
+// our game's configuration
+let config = {
+  type: Phaser.AUTO,
+  width: game_width,
+  height: game_height,
+  scene: gameScene,
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 500 },
+      debug: false
+    }
+  }
+};
+
+// create the game, and pass it the configuration
+let game = new Phaser.Game(config);
 
 function updateStockMovements()
 {
@@ -20,28 +50,34 @@ function updateStockMovements()
         // minus to get stocks moving up on screen when rising
         enemies[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
         console.log("stock:", enemies[i].name, "minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", enemies[i].yMove);
-      },
-      error: function(xhr) {
-        //Do Something to handle error
       }
     });
   }
 
-  minute_of_day++
+  minute_of_day++;
   if (minute_of_day >= 390){
     gameScene.gameOver()
   }
-}
+};
 
+function display_new_stock(stock){
+  var x = Phaser.Math.Between(50, game_width - 50)
+  var y = Phaser.Math.Between(player.y - 400, player.y + 100)
 
-// create a new scene named "Game"
-let gameScene = new Phaser.Scene('Game');
+  enemy = gameScene.enemies.create(x, y, stock);
 
+  enemy.name = stock;
+  enemy.yMove = 0;
+  enemy.setScale = 0.5;
+  gameScene.physics.add.collider(enemy, platforms);
 
-// some parameters for our scene
-gameScene.init = function() {
-  this.playerSpeed = 1.5;
-}
+  //options that stop stocks falling down due to gravity
+  enemy.body.allowGravity = false;
+  enemy.body.moves = false;
+  enemy.body.velocity.y = 0;
+  enemy.setFriction(1, 1);
+  enemy.setImmovable(true);
+};
 
 
 // load asset files for our game
@@ -91,18 +127,27 @@ gameScene.create = function() {
   let bg = this.add.sprite(0, 0, 'background');
   bg.setOrigin(0, 0);
 
+
+  //allow camera to scroll up, but not past start downward or sideways past width of game
+  //this.cameras.main.setPosition(0,0);
+  this.cameras.main.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
+  this.physics.world.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
+
+  // reset camera
+  this.cameras.main.resetFX();
+
   //  Here we create the ground.
   platforms = this.physics.add.staticGroup();
-  platforms.create(this.sys.game.config.width /2 , 
-                   this.sys.game.config.height - 32, 
+  platforms.create(game_width /2 , 
+                   game_height - 32, 
                    'ground').setScale(2).refreshBody(); 
 
   // player
-  player = this.physics.add.sprite(40, this.sys.game.config.height / 2, 'dude');
+  player = this.physics.add.sprite(40, game_height / 2, 'dude');
   player.setCollideWorldBounds(true);
   this.physics.add.collider(player, platforms);
 
-    //  Our player animations, turning, walking left and walking right.
+  //  Our player animations, turning, walking left and walking right.
   this.anims.create({
     key: 'left',
     frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
@@ -127,7 +172,7 @@ gameScene.create = function() {
   cursors = this.input.keyboard.createCursorKeys();
 
   // goal
-  this.treasure = this.add.sprite(this.sys.game.config.width - 80, this.sys.game.config.height / 2, 'treasure');
+  this.treasure = this.add.sprite(game_width - 80, game_height / 2, 'treasure');
   this.treasure.setScale(0.6);
 
 
@@ -140,46 +185,21 @@ gameScene.create = function() {
     $.ajax({
       url: "/next_stock",
       success: function(stock) {
-
-        var x = Phaser.Math.Between(50, gameScene.sys.game.config.width - 50)
-        var y = Phaser.Math.Between(100, gameScene.sys.game.config.height - 100)
-
-        enemy = gameScene.enemies.create(x, y, stock);
-
-        enemy.name = stock;
-        enemy.yMove = 0;
-        gameScene.physics.add.collider(enemy, platforms);
-
-        //options that stop stocks falling down due to gravity
-        enemy.body.allowGravity = false;
-        enemy.body.moves = false;
-        enemy.body.velocity.y = 0;
-        enemy.setFriction(1, 1);
-        enemy.setImmovable(true);
+        display_new_stock(stock)
       }
     });
   };
   
-  Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.5, -0.5);
-
-//  Phaser.Actions.Call(this.enemies.getChildren(), function(enemy) {
-//    enemy.body.allowGravity = false;
-//    enemy.body.moves = false;
-//   enemy.setFriction(1, 1)
-//    enemy.setImmovable(true);
-//
-//    //enemy.setCollideWorldBounds(true);
-//    this.physics.add.collider(enemy, platforms);
-//  }, this);
-
+  //Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.4, -0.4);
 
   this.physics.add.collider(player, this.enemies);
 
   // player is alive
   this.isPlayerAlive = true;
 
-  // reset camera
-  this.cameras.main.resetFX();
+  //have camera follow player
+  this.cameras.main.startFollow(player, true, 0.05, 0.05);  
+
 
   //function that will update stock movements
   timedEvent = this.time.addEvent({delay: 500, 
@@ -196,6 +216,11 @@ gameScene.update = function() {
   // only if the player is alive
   if (!this.isPlayerAlive) {
     return;
+  }
+
+  //game ends if player hits bottom of screen
+  if(player.body.bottom >= game_bottom){
+    this.gameOver()
   }
 
 
@@ -217,7 +242,7 @@ gameScene.update = function() {
 
   if (cursors.up.isDown && player.body.touching.down)
   {
-    player.setVelocityY(-500);
+    player.setVelocityY(-700);
   }
 
   //allow players speed up their fall by holding the down button
@@ -237,6 +262,8 @@ gameScene.update = function() {
   let numEnemies = enemies.length;
 
   for (let i = 0; i < numEnemies; i++) {
+    //check if stock still on screen
+
 
     // move enemies
     //enemies[i].speed = yMove;
@@ -255,7 +282,22 @@ gameScene.update = function() {
     //  this.gameOver();
     //  break;
     //}
-  }
+  };
+
+  //move up bottom of world up to so you can't fall all the way back down
+  if (player.y < game_height/2 && this.cameras.main.worldView.bottom < game_bottom){
+    game_bottom = this.cameras.main.worldView.bottom;
+    console.log('updated game_bottom to:', game_bottom);
+    this.cameras.main.setBounds(0, 
+                                game_max_height, 
+                                game_width, 
+                                -game_max_height + game_bottom);
+    this.physics.world.setBounds(0, 
+                                 game_max_height, 
+                                 game_width, 
+                                 -game_max_height + game_bottom);
+  };
+
 };
 
 gameScene.gameOver = function() {
@@ -274,26 +316,11 @@ gameScene.gameOver = function() {
   // restart game
   this.time.delayedCall(500, function() {
     minute_of_day = 0;
+    game_bottom = game_height;
     this.scene.restart();
   }, [], this);
 };
 
 
 
-// our game's configuration
-let config = {
-  type: Phaser.AUTO,
-  width: 800,
-  height: 660,
-  scene: gameScene,
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 500 },
-      debug: false
-    }
-  }
-};
 
-// create the game, and pass it the configuration
-let game = new Phaser.Game(config);
