@@ -44,29 +44,26 @@ let config = {
 let game = new Phaser.Game(config);
 
 function updateStockMovements(){
+  //update yMove (the amount a stock gets moved by in each update loop) of each on screen stock
 
-  // enemy movement and collision
-  let enemies_children = gameScene.enemies.getChildren();
-  let numEnemies = enemies_children.length;
-
-  for (let i = 0; i < numEnemies; i++) {
-    $.ajax({
-      url: "/quote",
-      data: {"stock": enemies_children[i].name, "minute_of_day": minute_of_day},
-      success: function(percentChange) {
-        //the child will be undefined if this stock has just been 
-        //off screened (and removed from group) but everything hasn't caught up yet.
-        if (enemies_children[i] !== undefined){
+  stocks.getChildren().forEach(function(stock){
+    //the child will be undefined if this stock has just been 
+    //off screened (and removed from group) but everything hasn't caught up yet.
+    if (stock !== undefined){
+      $.ajax({
+        url: "/quote",
+        data: {"stock": stock.name, "minute_of_day": minute_of_day},
+        success: function(percentChange) {
           // minus to get stocks moving up on screen when rising
-          enemies_children[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
-          console.log("stock:", enemies_children[i].name, 
+          stock.yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+          console.log("stock:", stock.name, 
                       "minute_of_day:", minute_of_day, 
                       "percentChange:", percentChange, 
-                      "yMove:", enemies_children[i].yMove);
-        };
-      }
-    });
-  }
+                      "yMove:", stock.yMove);
+        }
+      });
+    }
+  });
 
   minute_of_day++;
   if (minute_of_day >= 390){
@@ -80,41 +77,41 @@ function display_new_stock(){
     $.ajax({
       url: "/next_stock",
       async: false,
-      success: function(stock) {
+      success: function(stock_name) {
         var x = Phaser.Math.Between(50, game_width - 50);
         var y = Phaser.Math.Between(player.y - 100, player.y + 100);
 
-        enemy = gameScene.enemies.create(x, y, stock).setScale(0.75);
+        stock = stocks.create(x, y, stock_name).setScale(0.75);
 
-        enemy.name = stock;
-        enemy.yMove = 0;
-        gameScene.physics.add.collider(enemy, platforms);
+        stock.name = stock_name;
+        stock.yMove = 0;
+        gameScene.physics.add.collider(stock, platforms);
 
         //options that stop stocks falling down due to gravity
-        enemy.body.allowGravity = false;
-        enemy.body.moves = false;
-        enemy.body.velocity.y = 0;
-        enemy.setFriction(1, 1);
-        enemy.setImmovable(true);
+        stock.body.allowGravity = false;
+        stock.body.moves = false;
+        stock.body.velocity.y = 0;
+        stock.setFriction(1, 1);
+        stock.setImmovable(true);
       }
     });
 };
 
 
-function stop_displaying_stock(enemies, enemy){
+function stop_displaying_stock(stock){
   $.ajax({
     url: "/off_screened_stock",
-    data: {"stock": enemy.name}
+    data: {"stock": stock.name}
   });
-  enemies.remove(enemy, true, true); //two trues to remove from scene and destroy child
+  stocks.remove(stock, true, true); //two trues to remove from scene and destroy child
 };
 
 
 function update_score_text(){
   score_text.setText('Gains: $ ' + Phaser.Math.RoundTo(score_money) 
                      + '\nHeight: ' + score_height + 'm'); 
-  hi_score_text.setText('Best Gains: $ ' + Phaser.Math.RoundTo(hi_score_money) 
-                        + '\nBest Height: ' + hi_score_height + 'm'); 
+  hi_score_text.setText('High Scores:\nGains: $ ' + Phaser.Math.RoundTo(hi_score_money) 
+                        + '\nHeight: ' + hi_score_height + 'm'); 
 };
 
 
@@ -182,9 +179,6 @@ gameScene.create = function() {
   this.cameras.main.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
   this.physics.world.setBounds(0, game_max_height, game_width, -game_max_height + game_height);
 
-  // reset camera, think would only be used to reset fade/shake effects from game over screen
-  //this.cameras.main.resetFX();
-
   //background color will only be seen if users scroll past tiles
   this.cameras.main.setBackgroundColor('#33B8FF') //#33B8FF is a light blue color
 
@@ -196,11 +190,13 @@ gameScene.create = function() {
     this.add.image(0, -bg_height * i, 'background').setOrigin(0).setFlipY(i%2!=0);
   };
 
-  //  Here we create the ground.
+  //create ground and a helper platform for the start
   platforms = this.physics.add.staticGroup();
   platforms.create(game_width /2 , 
                    game_height - 32, 
-                   'ground').setScale(2).refreshBody(); 
+                   'ground').setScale(2).refreshBody();
+  platforms.create(game_width + 100, game_height - 250, 'ground');
+
 
   // player
   player = this.physics.add.sprite(40, game_height / 2, 'dude');
@@ -234,15 +230,21 @@ gameScene.create = function() {
   //  Input Events
   cursors = this.input.keyboard.createCursorKeys();
 
-  // group of enemies
-  this.enemies = this.physics.add.group();
+  // group of stocks
+  stocks = this.physics.add.group();
 
   //create 4 new stock symbols
   for (var i = 0; i < stocks_on_screen_at_once; i++) {
     display_new_stock();
   };
 
-  this.physics.add.collider(player, this.enemies);
+  //function that will update stock movements
+  timedEvent = this.time.addEvent({delay: 500, 
+                                   callback: updateStockMovements, 
+                                   callbackScope: this, 
+                                   loop: true});
+
+  this.physics.add.collider(player, stocks);
 
   //have camera follow player
   this.cameras.main.startFollow(player, true, 0.05, 0.05);
@@ -262,19 +264,13 @@ gameScene.create = function() {
   update_score_text();
 
   //display used date and time
-  datetime_text = this.add.text(365, 10, '',
+  datetime_text = this.add.text(game_width-235, 10, '',
                                 {fontFamily: 'Arial, sans-serif',
                                  fontSize: '22px',
                                  //backgroundColor: '#7FFFFFFF', 
                                  fill: '#000'
                                 }).setScrollFactor(0);
   update_datetime_text();
-
-  //function that will update stock movements
-  timedEvent = this.time.addEvent({delay: 500, 
-                                   callback: updateStockMovements, 
-                                   callbackScope: this, 
-                                   loop: true});
 };
 
 
@@ -319,46 +315,58 @@ gameScene.update = function() {
     player.setVelocityY(jump_height);
   }
 
-  //allow players speed up their fall by holding the down button
+  //allow jumping up side of stocks
+  /*
+  if ((cursors.up.isDown && player.body.touching.left) 
+      || (cursors.up.isDown && player.body.touching.right)){
+    player.setVelocityY(jump_height/3);
+
+    //push player off surface
+    if(player.body.touching.left){
+      player.setVelocityX(-jump_height*5)
+    } else if (player.body.touching.right){
+      player.setVelocityX(jump_height*5)
+    }
+  }
+  */
+
+  //speed up a player's fall if down button held
   if (cursors.down.isDown && !player.body.touching.down)
   {
     player.setVelocityY(player.body.velocity.y + 15);
   }
 
-  // enemy movement and collision
-  let enemies_children = this.enemies.getChildren();
-  let numEnemies = enemies_children.length;
-
-  for (let i = 0; i < numEnemies; i++) {
+  //move stocks
+  stocks.getChildren().forEach(function(stock){
     //the child will be undefined if this stock has just been 
     //off screened (and removed from group) but everything hasn't caught up yet.
-    if (enemies_children[i] !== undefined){
+    if (stock !== undefined){
 
       //check if a player is on this stock
-      if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies_children[i].getBounds())) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), stock.getBounds())) {
         //move player with stock
-        player.y += enemies_children[i].yMove;
+        player.y += stock.yMove;
 
         //check if stock moving up or down
-        if(enemies_children[i].yMove < 0){
+        if(stock.yMove < 0){
           player.setTint(0x00ff00); //tint green
-          score_money -= enemies_children[i].yMove;
-        } else if (enemies_children[i].yMove > 0){
+          score_money += -stock.yMove;
+        } else if (stock.yMove > 0){
           player.setTint(0xff0000); //tint red
-          score_money += enemies_children[i].yMove;
+          score_money -= stock.yMove;
         }
         
       };
       
-      enemies_children[i].y += enemies_children[i].yMove;
+      stock.y += stock.yMove;
 
       //if this stock has gone off screen then delete it and create a new one
-      if (enemies_children[i].y >= game_bottom + 20 || enemies_children[i].y < this.cameras.main.worldView.top - 100){
-        stop_displaying_stock(this.enemies, enemies_children[i]);
+      if (stock.y >= game_bottom + 20 || stock.y < gameScene.cameras.main.worldView.top - 100){
+        stop_displaying_stock(stock);
         display_new_stock();
       };
     };
-  };
+  });
 
   //move up bottom of world up to so you can't fall all the way back down
   if (player.y < game_height/2 && this.cameras.main.worldView.bottom < game_bottom){
@@ -389,12 +397,28 @@ gameScene.gameOver = function() {
   this.cameras.main.shake(500);
 
   // fade camera
-  this.time.delayedCall(250, function() {
-    this.cameras.main.fade(500);
+  //this.time.delayedCall(300, function() {
+  // this.cameras.main.fade(700);
+  //}, [], this);
+
+  //show end screen
+  this.time.delayedCall(1000, function(){
+    end_screen_text = this.add.text(
+      -64, -30, 
+      ('Your score:\nGains: $ ' + Phaser.Math.RoundTo(score_money) 
+       + '\nHeight: ' + score_height + 'm'
+       + '\n\n\nRestarting...'),
+      {fontFamily: 'Arial, sans-serif',
+       fontSize: '22px',
+       backgroundColor: '#000000',
+       fill: '#fff',
+       align: 'center',
+       padding: 300
+      }).setScrollFactor(0);
   }, [], this);
 
   // restart game
-  this.time.delayedCall(1000, function() {
+  this.time.delayedCall(5000, function() {
     //update hi scores
     if(score_money > hi_score_money){
       hi_score_money = score_money;
@@ -408,9 +432,8 @@ gameScene.gameOver = function() {
     game_bottom = game_height;
     score_money = 0;
     score_height = 0;
-
-
-
+    end_screen_text.visible = false;
+    
     this.scene.restart();
   }, [], this);
 };
