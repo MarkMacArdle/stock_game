@@ -3,6 +3,7 @@ var stocks_on_screen_at_once = 4;
 var moveSpeedFactor = 1000;
 var jump_height = -500;
 var minute_of_day = 0;
+var trading_date_str;
 var game_width = 600;
 var game_height = 600;
 var game_max_height = -99999; //just a big number that user will never get up to
@@ -13,6 +14,7 @@ var hi_score_money = 0;
 var hi_score_height = 0;
 var score_text;
 var hi_score_text;
+var datetime_text;
 
 
 // create a new scene named "Game"
@@ -41,10 +43,9 @@ let config = {
 // create the game, and pass it the configuration
 let game = new Phaser.Game(config);
 
-function updateStockMovements()
-{
+function updateStockMovements(){
 
-// enemy movement and collision
+  // enemy movement and collision
   let enemies_children = gameScene.enemies.getChildren();
   let numEnemies = enemies_children.length;
 
@@ -116,11 +117,38 @@ function update_score_text(){
                         + '\nBest Height: ' + hi_score_height + 'm'); 
 };
 
+
+function update_datetime_text(){
+  //trading day goes from 09.30 to 16.00
+  var dt = new Date(trading_date_str.slice(0,4) 
+                    + '-'
+                    + trading_date_str.slice(4,6) 
+                    + '-'
+                    + trading_date_str.slice(6,8)
+                    + 'T09:30:00');
+  dt = new Date(dt.getTime() + minute_of_day*60000);
+
+  //from https://stackoverflow.com/questions/14638018/current-time-formatting-with-javascript
+  var options = {  
+    weekday: "short", year: "numeric", month: "numeric",  
+    day: "numeric", hour: "2-digit", minute: "2-digit"  
+  };  
+  datetime_text.setText(dt.toLocaleTimeString('en-gb', options));
+};
+
 // load asset files for our game
 gameScene.preload = function() {
   this.load.image('background', '/static/assets/sky.png');
   this.load.image('ground', '/static/assets/platform.png');
   this.load.spritesheet('dude', '/static/assets/dude.png', { frameWidth: 32, frameHeight: 48 });
+
+  //get date server is using
+  $.ajax({
+    url: "/trading_day",
+    success: function(last_trading_date_str){
+      trading_date_str = last_trading_date_str;
+    }
+  });
 
   //load the logos
   $.ajax({
@@ -220,12 +248,12 @@ gameScene.create = function() {
   this.cameras.main.startFollow(player, true, 0.05, 0.05);
 
   //add score board
-  score_text = this.add.text(16, 16, '',
+  score_text = this.add.text(10, 10, '',
                              {fontFamily: 'Arial, sans-serif',
                               fontSize: '22px', 
                               fill: '#000'
                              }).setScrollFactor(0);
-  hi_score_text = this.add.text(16, 68, '', 
+  hi_score_text = this.add.text(10, 62, '', 
                                 {fontFamily: 'Arial, sans-serif',
                                  fontSize: '18px',
                                  //backgroundColor: '#7FFFFFFF',
@@ -233,6 +261,14 @@ gameScene.create = function() {
                                 }).setScrollFactor(0);
   update_score_text();
 
+  //display used date and time
+  datetime_text = this.add.text(365, 10, '',
+                                {fontFamily: 'Arial, sans-serif',
+                                 fontSize: '22px',
+                                 //backgroundColor: '#7FFFFFFF', 
+                                 fill: '#000'
+                                }).setScrollFactor(0);
+  update_datetime_text();
 
   //function that will update stock movements
   timedEvent = this.time.addEvent({delay: 500, 
@@ -341,6 +377,7 @@ gameScene.update = function() {
   };
 
   update_score_text();
+  update_datetime_text();
 };
 
 gameScene.gameOver = function() {

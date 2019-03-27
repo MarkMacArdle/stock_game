@@ -67,7 +67,6 @@ def next_stock():
     return chosen_stock
     
 
-
 @app.route("/off_screened_stock", methods=["GET"])
 def off_screened_stock():
     """Change stock's on_screen boolean to false"""
@@ -80,8 +79,13 @@ def off_screened_stock():
         return stock 
 
 
+@app.route("/trading_day", methods=["GET", "POST"])
+def trading_day():
+    return latest_valid_date_str 
 
 def get_latest_valid_trading_date():
+    """returns date string of last day with a full dataset in the form 20190314"""
+    
     #loop back through last 100 days until a valid date is found
     #just chose 100 out of the air as expect to find a valid date by then
     for i in range(100):
