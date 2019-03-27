@@ -1,12 +1,18 @@
 var time_limit = 390; //only 390 minutes in a trading day
 var stocks_on_screen_at_once = 4;
 var moveSpeedFactor = 1000;
-var xMove = 0; //only move vertically for now
+var jump_height = -500;
 var minute_of_day = 0;
-var game_width = 800;
-var game_height = 660;
-var game_max_height = -99999;
+var game_width = 600;
+var game_height = 600;
+var game_max_height = -99999; //just a big number that user will never get up to
 var game_bottom = game_height; //will be reset in update function as player rises
+var score_money = 0;
+var score_height = 0;
+var hi_score_money = 0;
+var hi_score_height = 0;
+var score_text;
+var hi_score_text;
 
 
 // create a new scene named "Game"
@@ -52,7 +58,10 @@ function updateStockMovements()
         if (enemies_children[i] !== undefined){
           // minus to get stocks moving up on screen when rising
           enemies_children[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
-          console.log("stock:", enemies_children[i].name, "minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", enemies_children[i].yMove);
+          console.log("stock:", enemies_children[i].name, 
+                      "minute_of_day:", minute_of_day, 
+                      "percentChange:", percentChange, 
+                      "yMove:", enemies_children[i].yMove);
         };
       }
     });
@@ -71,10 +80,10 @@ function display_new_stock(){
       url: "/next_stock",
       async: false,
       success: function(stock) {
-        var x = Phaser.Math.Between(50, game_width - 50)
-        var y = Phaser.Math.Between(player.y - 400, player.y + 100)
+        var x = Phaser.Math.Between(50, game_width - 50);
+        var y = Phaser.Math.Between(player.y - 100, player.y + 100);
 
-        enemy = gameScene.enemies.create(x, y, stock);
+        enemy = gameScene.enemies.create(x, y, stock).setScale(0.75);
 
         enemy.name = stock;
         enemy.yMove = 0;
@@ -97,8 +106,15 @@ function stop_displaying_stock(enemies, enemy){
     data: {"stock": enemy.name}
   });
   enemies.remove(enemy, true, true); //two trues to remove from scene and destroy child
-}
+};
 
+
+function update_score_text(){
+  score_text.setText('Gains: $ ' + Phaser.Math.RoundTo(score_money) 
+                     + '\nHeight: ' + score_height + 'm'); 
+  hi_score_text.setText('Best Gains: $ ' + Phaser.Math.RoundTo(hi_score_money) 
+                        + '\nBest Height: ' + hi_score_height + 'm'); 
+};
 
 // load asset files for our game
 gameScene.preload = function() {
@@ -127,10 +143,6 @@ gameScene.preload = function() {
       };
     },
   });
-
-  this.load.image('player', '/static/assets/player.png');
-  this.load.image('treasure', '/static/assets/stock_logos/AAL.png');
-
 };
 
 
@@ -194,10 +206,6 @@ gameScene.create = function() {
   //  Input Events
   cursors = this.input.keyboard.createCursorKeys();
 
-  // goal
-  this.treasure = this.add.sprite(game_width - 80, game_height / 2, 'treasure');
-  this.treasure.setScale(0.6);
-
   // group of enemies
   this.enemies = this.physics.add.group();
 
@@ -205,13 +213,25 @@ gameScene.create = function() {
   for (var i = 0; i < stocks_on_screen_at_once; i++) {
     display_new_stock();
   };
-  
-  //Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.4, -0.4);
 
   this.physics.add.collider(player, this.enemies);
 
   //have camera follow player
-  this.cameras.main.startFollow(player, true, 0.05, 0.05);  
+  this.cameras.main.startFollow(player, true, 0.05, 0.05);
+
+  //add score board
+  score_text = this.add.text(16, 16, '',
+                             {fontFamily: 'Arial, sans-serif',
+                              fontSize: '22px', 
+                              fill: '#000'
+                             }).setScrollFactor(0);
+  hi_score_text = this.add.text(16, 68, '', 
+                                {fontFamily: 'Arial, sans-serif',
+                                 fontSize: '18px',
+                                 //backgroundColor: '#7FFFFFFF',
+                                 color: '#757575'
+                                }).setScrollFactor(0);
+  update_score_text();
 
 
   //function that will update stock movements
@@ -231,9 +251,14 @@ gameScene.update = function() {
     return;
   }
 
+  //clear any tinting on player. It will be reapplied if needed
+  player.clearTint();
+
   //game ends if player hits bottom of screen
   if(player.body.bottom >= game_bottom){
-    this.gameOver()
+    player.setTintFill(0xff0000); //turn player solid red
+    this.gameOver();
+    return
   }
 
 
@@ -255,7 +280,7 @@ gameScene.update = function() {
 
   if (cursors.up.isDown && player.body.touching.down)
   {
-    player.setVelocityY(-700);
+    player.setVelocityY(jump_height);
   }
 
   //allow players speed up their fall by holding the down button
@@ -264,31 +289,29 @@ gameScene.update = function() {
     player.setVelocityY(player.body.velocity.y + 15);
   }
 
-  // treasure collision
-  if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), this.treasure.getBounds())) {
-    this.gameOver();
-  }
-
   // enemy movement and collision
   let enemies_children = this.enemies.getChildren();
   let numEnemies = enemies_children.length;
 
   for (let i = 0; i < numEnemies; i++) {
-    //check if stock still on screen
-
-
-    // move enemies
-    //enemies[i].speed = yMove;
-    //enemies[i].allowGravity = false;
-    //enemies[i].body.velocity.y = 0;
-
     //the child will be undefined if this stock has just been 
     //off screened (and removed from group) but everything hasn't caught up yet.
     if (enemies_children[i] !== undefined){
 
-      //if a player is on this stock move them with it
+      //check if a player is on this stock
       if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies_children[i].getBounds())) {
+        //move player with stock
         player.y += enemies_children[i].yMove;
+
+        //check if stock moving up or down
+        if(enemies_children[i].yMove < 0){
+          player.setTint(0x00ff00); //tint green
+          score_money -= enemies_children[i].yMove;
+        } else if (enemies_children[i].yMove > 0){
+          player.setTint(0xff0000); //tint red
+          score_money += enemies_children[i].yMove;
+        }
+        
       };
       
       enemies_children[i].y += enemies_children[i].yMove;
@@ -298,18 +321,13 @@ gameScene.update = function() {
         stop_displaying_stock(this.enemies, enemies_children[i]);
         display_new_stock();
       };
-
-      // enemy collision
-      //if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {
-      //  this.gameOver();
-      //  break;
-      //}
-  };
+    };
   };
 
   //move up bottom of world up to so you can't fall all the way back down
   if (player.y < game_height/2 && this.cameras.main.worldView.bottom < game_bottom){
-    game_bottom = this.cameras.main.worldView.bottom;
+    //round up as number is negative
+    game_bottom = Phaser.Math.CeilTo(this.cameras.main.worldView.bottom);
     this.cameras.main.setBounds(0, 
                                 game_max_height, 
                                 game_width, 
@@ -318,8 +336,11 @@ gameScene.update = function() {
                                  game_max_height, 
                                  game_width, 
                                  -game_max_height + game_bottom);
+    
+    score_height = -(game_bottom - game_height)
   };
 
+  update_score_text();
 };
 
 gameScene.gameOver = function() {
@@ -332,13 +353,27 @@ gameScene.gameOver = function() {
 
   // fade camera
   this.time.delayedCall(250, function() {
-    this.cameras.main.fade(250);
+    this.cameras.main.fade(500);
   }, [], this);
 
   // restart game
-  this.time.delayedCall(500, function() {
+  this.time.delayedCall(1000, function() {
+    //update hi scores
+    if(score_money > hi_score_money){
+      hi_score_money = score_money;
+    };
+    if(score_height > hi_score_height){
+      hi_score_height = score_height;
+    };
+
+    //reset defaults
     minute_of_day = 0;
     game_bottom = game_height;
+    score_money = 0;
+    score_height = 0;
+
+
+
     this.scene.restart();
   }, [], this);
 };
