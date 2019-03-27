@@ -8,10 +8,10 @@ var game_width = 600;
 var game_height = 600;
 var game_max_height = -99999; //just a big number that user will never get up to
 var game_bottom = game_height; //will be reset in update function as player rises
-var score_money = 0;
+var score_money = 1;
 var score_height = 0;
-var hi_score_money = 0;
-var hi_score_height = 0;
+var hi_score_money = score_money;
+var hi_score_height = score_height;
 var score_text;
 var hi_score_text;
 var datetime_text;
@@ -81,7 +81,7 @@ function display_new_stock(){
         var x = Phaser.Math.Between(50, game_width - 50);
         var y = Phaser.Math.Between(player.y - 100, player.y + 100);
 
-        stock = stocks.create(x, y, stock_name).setScale(0.75);
+        stock = stocks.create(x, y, stock_name).setScale(1);
 
         stock.name = stock_name;
         stock.yMove = 0;
@@ -108,9 +108,9 @@ function stop_displaying_stock(stock){
 
 
 function update_score_text(){
-  score_text.setText('Gains: $ ' + Phaser.Math.RoundTo(score_money) 
+  score_text.setText('Profit: $ ' + Phaser.Math.RoundTo(score_money) 
                      + '\nHeight: ' + score_height + 'm'); 
-  hi_score_text.setText('High Scores:\nGains: $ ' + Phaser.Math.RoundTo(hi_score_money) 
+  hi_score_text.setText('High Scores:\nProfit: $ ' + Phaser.Math.RoundTo(hi_score_money) 
                         + '\nHeight: ' + hi_score_height + 'm'); 
 };
 
@@ -404,10 +404,9 @@ gameScene.gameOver = function() {
   //show end screen
   this.time.delayedCall(1000, function(){
     end_screen_text = this.add.text(
-      -64, -30, 
-      ('Your score:\nGains: $ ' + Phaser.Math.RoundTo(score_money) 
-       + '\nHeight: ' + score_height + 'm'
-       + '\n\n\nRestarting...'),
+      -64, -50, 
+      ('Your score:\nProfit: $ ' + Phaser.Math.RoundTo(score_money) 
+       + '\nHeight: ' + score_height + 'm'),
       {fontFamily: 'Arial, sans-serif',
        fontSize: '22px',
        backgroundColor: '#000000',
@@ -415,6 +414,11 @@ gameScene.gameOver = function() {
        align: 'center',
        padding: 300
       }).setScrollFactor(0);
+  }, [], this);
+
+  //update text to say restarting
+  this.time.delayedCall(3000, function(){
+    end_screen_text.setText(end_screen_text.text + '\n\n\nRestarting...');
   }, [], this);
 
   // restart game
@@ -433,7 +437,7 @@ gameScene.gameOver = function() {
     score_money = 0;
     score_height = 0;
     end_screen_text.visible = false;
-    
+
     this.scene.restart();
   }, [], this);
 };
