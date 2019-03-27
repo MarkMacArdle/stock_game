@@ -54,6 +54,14 @@ def quote():
 @app.route("/next_stock", methods=["GET", "POST"])
 def next_stock():
     """Return a random stock that isn't already on screen."""
+    not_on_screen_stocks = [i for i in stocks if not stocks[i]['on_screen']]
+
+    #if no stocks left turn them all to false, prob caused by games restarting without toggling
+    if not not_on_screen_stocks:
+        for i in stocks:
+            stocks[i]['on_screen'] = False
+            not_on_screen_stocks.append(i)
+
     chosen_stock = choice([i for i in stocks if not stocks[i]['on_screen']])
     stocks[chosen_stock]['on_screen'] = True
     return chosen_stock
@@ -63,11 +71,13 @@ def next_stock():
 @app.route("/off_screened_stock", methods=["GET"])
 def off_screened_stock():
     """Change stock's on_screen boolean to false"""
-
     if request.method == "GET":
         stock = request.args.get('stock')
+        print('off screening:' + stock)
         stocks[stock]['on_screen'] = False
-    return 
+
+        #returning stock as flask gave error if I didn't return anything or None
+        return stock 
 
 
 

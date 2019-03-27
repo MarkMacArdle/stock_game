@@ -39,17 +39,21 @@ function updateStockMovements()
 {
 
 // enemy movement and collision
-  let enemies = gameScene.enemies.getChildren();
-  let numEnemies = enemies.length;
+  let enemies_children = gameScene.enemies.getChildren();
+  let numEnemies = enemies_children.length;
 
   for (let i = 0; i < numEnemies; i++) {
     $.ajax({
       url: "/quote",
-      data: {"stock": enemies[i].name, "minute_of_day": minute_of_day},
+      data: {"stock": enemies_children[i].name, "minute_of_day": minute_of_day},
       success: function(percentChange) {
-        // minus to get stocks moving up on screen when rising
-        enemies[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
-        console.log("stock:", enemies[i].name, "minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", enemies[i].yMove);
+        //the child will be undefined if this stock has just been 
+        //off screened (and removed from group) but everything hasn't caught up yet.
+        if (enemies_children[i] !== undefined){
+          // minus to get stocks moving up on screen when rising
+          enemies_children[i].yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+          console.log("stock:", enemies_children[i].name, "minute_of_day:", minute_of_day, "percentChange:", percentChange, "yMove:", enemies_children[i].yMove);
+        };
       }
     });
   }
@@ -60,23 +64,40 @@ function updateStockMovements()
   }
 };
 
-function display_new_stock(stock){
-  var x = Phaser.Math.Between(50, game_width - 50)
-  var y = Phaser.Math.Between(player.y - 400, player.y + 100)
 
-  enemy = gameScene.enemies.create(x, y, stock);
+function display_new_stock(){
+    //get a stock that isn't currently on screen
+    $.ajax({
+      url: "/next_stock",
+      async: false,
+      success: function(stock) {
+        var x = Phaser.Math.Between(50, game_width - 50)
+        var y = Phaser.Math.Between(player.y - 400, player.y + 100)
 
-  enemy.name = stock;
-  enemy.yMove = 0;
-  gameScene.physics.add.collider(enemy, platforms);
+        enemy = gameScene.enemies.create(x, y, stock);
 
-  //options that stop stocks falling down due to gravity
-  enemy.body.allowGravity = false;
-  enemy.body.moves = false;
-  enemy.body.velocity.y = 0;
-  enemy.setFriction(1, 1);
-  enemy.setImmovable(true);
+        enemy.name = stock;
+        enemy.yMove = 0;
+        gameScene.physics.add.collider(enemy, platforms);
+
+        //options that stop stocks falling down due to gravity
+        enemy.body.allowGravity = false;
+        enemy.body.moves = false;
+        enemy.body.velocity.y = 0;
+        enemy.setFriction(1, 1);
+        enemy.setImmovable(true);
+      }
+    });
 };
+
+
+function stop_displaying_stock(enemies, enemy){
+  $.ajax({
+    url: "/off_screened_stock",
+    data: {"stock": enemy.name}
+  });
+  enemies.remove(enemy, true, true); //two trues to remove from scene and destroy child
+}
 
 
 // load asset files for our game
@@ -105,9 +126,6 @@ gameScene.preload = function() {
         };
       };
     },
-    error: function(xhr) {
-      //Do Something to handle error
-    }
   });
 
   this.load.image('player', '/static/assets/player.png');
@@ -185,13 +203,7 @@ gameScene.create = function() {
 
   //create 4 new stock symbols
   for (var i = 0; i < stocks_on_screen_at_once; i++) {
-    //get a stock that isn't currently on screen
-    $.ajax({
-      url: "/next_stock",
-      success: function(stock) {
-        display_new_stock(stock)
-      }
-    });
+    display_new_stock();
   };
   
   //Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.4, -0.4);
@@ -249,7 +261,6 @@ gameScene.update = function() {
   //allow players speed up their fall by holding the down button
   if (cursors.down.isDown && !player.body.touching.down)
   {
-    //increase their existing velocity
     player.setVelocityY(player.body.velocity.y + 15);
   }
 
@@ -259,8 +270,8 @@ gameScene.update = function() {
   }
 
   // enemy movement and collision
-  let enemies = this.enemies.getChildren();
-  let numEnemies = enemies.length;
+  let enemies_children = this.enemies.getChildren();
+  let numEnemies = enemies_children.length;
 
   for (let i = 0; i < numEnemies; i++) {
     //check if stock still on screen
@@ -268,27 +279,37 @@ gameScene.update = function() {
 
     // move enemies
     //enemies[i].speed = yMove;
-    enemies[i].allowGravity = false;
-    enemies[i].body.velocity.y = 0;
+    //enemies[i].allowGravity = false;
+    //enemies[i].body.velocity.y = 0;
 
-    //if a player is on this stock move them with it
-    if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {
-      player.y += enemies[i].yMove;
-    };
-    
-    enemies[i].y += enemies[i].yMove;
+    //the child will be undefined if this stock has just been 
+    //off screened (and removed from group) but everything hasn't caught up yet.
+    if (enemies_children[i] !== undefined){
 
-    // enemy collision
-    //if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {
-    //  this.gameOver();
-    //  break;
-    //}
+      //if a player is on this stock move them with it
+      if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies_children[i].getBounds())) {
+        player.y += enemies_children[i].yMove;
+      };
+      
+      enemies_children[i].y += enemies_children[i].yMove;
+
+      //if this stock has gone off screen then delete it and create a new one
+      if (enemies_children[i].y >= game_bottom + 20 || enemies_children[i].y < this.cameras.main.worldView.top - 100){
+        stop_displaying_stock(this.enemies, enemies_children[i]);
+        display_new_stock();
+      };
+
+      // enemy collision
+      //if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), enemies[i].getBounds())) {
+      //  this.gameOver();
+      //  break;
+      //}
+  };
   };
 
   //move up bottom of world up to so you can't fall all the way back down
   if (player.y < game_height/2 && this.cameras.main.worldView.bottom < game_bottom){
     game_bottom = this.cameras.main.worldView.bottom;
-    console.log('updated game_bottom to:', game_bottom);
     this.cameras.main.setBounds(0, 
                                 game_max_height, 
                                 game_width, 
