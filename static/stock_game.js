@@ -1,11 +1,11 @@
 var time_limit = 390; //only 390 minutes in a trading day
-var stocks_on_screen_at_once = 4;
+var stocks_on_screen_at_once = 5;
 var moveSpeedFactor = 1000;
 var jump_height = -500;
 var minute_of_day = 0;
 var trading_date_str;
 var game_width = 600;
-var game_height = 600;
+var game_height = 700;
 var game_max_height = -99999; //just a big number that user will never get up to
 var game_bottom = game_height; //will be reset in update function as player rises
 var score_money = 1;
@@ -15,6 +15,11 @@ var hi_score_height = score_height;
 var score_text;
 var hi_score_text;
 var datetime_text;
+var touch_input_left = false;
+var touch_input_right = false;
+var touch_input_jump = false;
+var game_over_reason_default = 'You died!';
+var game_over_reason = game_over_reason_default;
 
 
 // create a new scene named "Game"
@@ -67,6 +72,7 @@ function updateStockMovements(){
 
   minute_of_day++;
   if (minute_of_day >= 390){
+    game_over_reason = "You've made it to the \nend of the trading day\n\nWell done!"
     gameScene.gameOver()
   }
 };
@@ -79,7 +85,7 @@ function display_new_stock(){
       async: false,
       success: function(stock_name) {
         var x = Phaser.Math.Between(50, game_width - 50);
-        var y = Phaser.Math.Between(player.y - 100, player.y + 100);
+        var y = Phaser.Math.Between(player.y - 300, player.y + 100);
 
         stock = stocks.create(x, y, stock_name).setScale(1);
 
@@ -132,6 +138,33 @@ function update_datetime_text(){
   };  
   datetime_text.setText(dt.toLocaleTimeString('en-gb', options));
 };
+
+
+function reset_touch_inputs(){
+  touch_input_left = false;
+  touch_input_right = false;
+  touch_input_jump = false;
+};
+
+
+function update_touch_input(pointer_x){
+  reset_touch_inputs();
+
+  console.log('in update_touch_input. pointer_x:', pointer_x);
+  //doing seperate ifs as a user could press multiple areas at once.
+  if(pointer_x >= 0 && pointer_x < game_width / 3){
+    touch_input_left = true;
+  } 
+
+  if (pointer_x >= game_width / 3 && pointer_x < (game_width / 3) * 2){
+    touch_input_jump = true;
+  } 
+
+  if (pointer_x >= (game_width / 3) * 2 && pointer_x <= game_width){
+    touch_input_right = true;
+  }
+};
+
 
 // load asset files for our game
 gameScene.preload = function() {
@@ -193,13 +226,13 @@ gameScene.create = function() {
   //create ground and a helper platform for the start
   platforms = this.physics.add.staticGroup();
   platforms.create(game_width /2 , 
-                   game_height - 32, 
-                   'ground').setScale(2).refreshBody();
-  platforms.create(game_width + 100, game_height - 250, 'ground');
+                   game_height - 75, 
+                   'ground').setScale(5).refreshBody();
+  platforms.create(game_width + 120, game_height - 300, 'ground');
 
 
   // player
-  player = this.physics.add.sprite(40, game_height / 2, 'dude');
+  player = this.physics.add.sprite(40, game_height -200, 'dude').setScale(1.5);
   player.setCollideWorldBounds(true);
   this.physics.add.collider(player, platforms);
 
@@ -227,10 +260,10 @@ gameScene.create = function() {
   // player is alive
   this.isPlayerAlive = true;
 
-  //  Input Events
+  //keyboard inputs
   cursors = this.input.keyboard.createCursorKeys();
 
-  // group of stocks
+  //containing group for the stocks
   stocks = this.physics.add.group();
 
   //create 4 new stock symbols
@@ -238,35 +271,35 @@ gameScene.create = function() {
     display_new_stock();
   };
 
+  this.physics.add.collider(player, stocks);
+
   //function that will update stock movements
-  timedEvent = this.time.addEvent({delay: 500, 
+  timedEvent = this.time.addEvent({delay: 800, 
                                    callback: updateStockMovements, 
                                    callbackScope: this, 
                                    loop: true});
 
-  this.physics.add.collider(player, stocks);
-
   //have camera follow player
-  this.cameras.main.startFollow(player, true, 0.05, 0.05);
+  this.cameras.main.startFollow(player, true, 0.2, 0.2, 0, 50);
 
   //add score board
   score_text = this.add.text(10, 10, '',
                              {fontFamily: 'Arial, sans-serif',
-                              fontSize: '22px', 
+                              fontSize: '26px', 
                               fill: '#000'
                              }).setScrollFactor(0);
-  hi_score_text = this.add.text(10, 62, '', 
+  hi_score_text = this.add.text(10, 70, '', 
                                 {fontFamily: 'Arial, sans-serif',
-                                 fontSize: '18px',
+                                 fontSize: '20px',
                                  //backgroundColor: '#7FFFFFFF',
                                  color: '#757575'
                                 }).setScrollFactor(0);
   update_score_text();
 
   //display used date and time
-  datetime_text = this.add.text(game_width-235, 10, '',
+  datetime_text = this.add.text(game_width/2, 10, '',
                                 {fontFamily: 'Arial, sans-serif',
-                                 fontSize: '22px',
+                                 fontSize: '26px',
                                  //backgroundColor: '#7FFFFFFF', 
                                  fill: '#000'
                                 }).setScrollFactor(0);
@@ -293,13 +326,16 @@ gameScene.update = function() {
     return
   }
 
+  if(this.input.activePointer.isDown){
+    update_touch_input(this.input.activePointer.downX);
+  }
 
-  if (cursors.left.isDown)
+  if (cursors.left.isDown || touch_input_left)
   {
     player.setVelocityX(-160);
     player.anims.play('left', true);
   }
-  else if (cursors.right.isDown)
+  else if (cursors.right.isDown || touch_input_right)
   {
     player.setVelocityX(160);
     player.anims.play('right', true);
@@ -310,25 +346,10 @@ gameScene.update = function() {
     player.anims.play('turn');
   }
 
-  if (cursors.up.isDown && player.body.touching.down)
+  if ((cursors.up.isDown || touch_input_jump) && player.body.touching.down)
   {
     player.setVelocityY(jump_height);
   }
-
-  //allow jumping up side of stocks
-  /*
-  if ((cursors.up.isDown && player.body.touching.left) 
-      || (cursors.up.isDown && player.body.touching.right)){
-    player.setVelocityY(jump_height/3);
-
-    //push player off surface
-    if(player.body.touching.left){
-      player.setVelocityX(-jump_height*5)
-    } else if (player.body.touching.right){
-      player.setVelocityX(jump_height*5)
-    }
-  }
-  */
 
   //speed up a player's fall if down button held
   if (cursors.down.isDown && !player.body.touching.down)
@@ -355,7 +376,6 @@ gameScene.update = function() {
           player.setTint(0xff0000); //tint red
           score_money -= stock.yMove;
         }
-        
       };
       
       stock.y += stock.yMove;
@@ -384,9 +404,11 @@ gameScene.update = function() {
     score_height = -(game_bottom - game_height)
   };
 
+  reset_touch_inputs();
   update_score_text();
   update_datetime_text();
 };
+
 
 gameScene.gameOver = function() {
 
@@ -402,17 +424,18 @@ gameScene.gameOver = function() {
   //}, [], this);
 
   //show end screen
-  this.time.delayedCall(1000, function(){
+  this.time.delayedCall(500, function(){
     end_screen_text = this.add.text(
-      -64, -50, 
-      ('Your score:\nProfit: $ ' + Phaser.Math.RoundTo(score_money) 
+      -293, -270, 
+      (game_over_reason 
+       + '\n\nYour score:\nProfit: $ ' + Phaser.Math.RoundTo(score_money) 
        + '\nHeight: ' + score_height + 'm'),
       {fontFamily: 'Arial, sans-serif',
-       fontSize: '22px',
+       fontSize: '30px',
        backgroundColor: '#000000',
        fill: '#fff',
        align: 'center',
-       padding: 300
+       padding: 500
       }).setScrollFactor(0);
   }, [], this);
 
