@@ -5,9 +5,9 @@ import csv
 #url_start = "https://storage.googleapis.com/iex/api/logos/"
 url_start = "https://www.nasdaq.com/logos/"
 
-save_file_path = "static/assets/stock_logos/"
+save_file_path = "game/static/assets/stock_logos/"
 
-with open("static/assets/nasdaq_100_stock_list.csv") as f:
+with open("game/static/assets/nasdaq_100_stock_list.csv") as f:
     data = csv.reader(f)
     for row in data:
         #filename = row[0] + ".png"
