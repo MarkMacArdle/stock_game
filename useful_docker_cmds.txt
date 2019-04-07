@@ -1,0 +1,19 @@
+To build docker container:
+    docker build -t stock_game:latest .
+        -t argument sets name and tag
+
+
+To run docker container:
+    docker run --name stock_game -d -p 5000:5000 --rm stock_game:latest
+        --name for name. If not specified a containers name will be two random words joined with an underscore (eg competent_hoover)
+        -d means run in background and not in this bash window
+        -p maps container to host ports (eg port 5000 of local host goes to port 5000 of process running in container)
+        --rm means delete container once it's terminated.
+
+
+To see currently running containers:
+    docker ps
+
+
+To see built containers:
+    docker images
