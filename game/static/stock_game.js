@@ -1,6 +1,8 @@
 var time_limit = 390; //only 390 minutes in a trading day
 var stocks_on_screen_at_once = 5;
-var moveSpeedFactor = 1000;
+var move_speed_factor;
+var move_speed_factor_start = 900;
+var move_speed_increaser_factor = 20;
 var jump_height = -500;
 var minute_of_day = 0;
 var trading_date_str;
@@ -8,10 +10,12 @@ var game_width = 600;
 var game_height = 700;
 var game_max_height = -99999; //just a big number that user will never get up to
 var game_bottom = game_height; //will be reset in update function as player rises
-var score_money = 1;
-var score_height = 0;
+var game_bottom_height = 0;
+var game_bottom_height_previous = 0;
+var score_money = 0;
+var score_points = 0;
 var hi_score_money = score_money;
-var hi_score_height = score_height;
+var hi_score_points = score_points;
 var score_text;
 var hi_score_text;
 var datetime_text;
@@ -20,6 +24,8 @@ var touch_input_right = false;
 var touch_input_jump = false;
 var game_over_reason_default = 'You died!';
 var game_over_reason = game_over_reason_default;
+var stock_change_multiplier_for_points = 20;
+var game_bottom_height_multiplier_for_points = 1/200;
 
 
 // create a new scene named "Game"
@@ -60,7 +66,7 @@ function updateStockMovements(){
         data: {"stock": stock.name, "minute_of_day": minute_of_day},
         success: function(percentChange) {
           // minus to get stocks moving up on screen when rising
-          stock.yMove = -(parseFloat(percentChange) * moveSpeedFactor);
+          stock.yMove = -(parseFloat(percentChange) * move_speed_factor);
           console.log("stock:", stock.name, 
                       "minute_of_day:", minute_of_day, 
                       "percentChange:", percentChange, 
@@ -69,6 +75,9 @@ function updateStockMovements(){
       });
     }
   });
+
+  //increase speed of blocks as day goes on
+  move_speed_factor = move_speed_factor_start + minute_of_day * move_speed_increaser_factor
 
   minute_of_day++;
   if (minute_of_day >= 390){
@@ -114,10 +123,10 @@ function stop_displaying_stock(stock){
 
 
 function update_score_text(){
-  score_text.setText('Profit: $ ' + Phaser.Math.RoundTo(score_money) 
-                     + '\nHeight: ' + score_height + 'm'); 
-  hi_score_text.setText('High Scores:\nProfit: $ ' + Phaser.Math.RoundTo(hi_score_money) 
-                        + '\nHeight: ' + hi_score_height + 'm'); 
+  score_text.setText('Points: ' + Phaser.Math.RoundTo(score_points) 
+                     + '\nProfit: $ ' + Phaser.Math.RoundTo(score_money)); 
+  hi_score_text.setText('High Scores: \nPoints: ' + Phaser.Math.RoundTo(hi_score_points) 
+                        + '\nProfit: $ ' + Phaser.Math.RoundTo(hi_score_money)); 
 };
 
 
@@ -370,9 +379,16 @@ gameScene.update = function() {
 
         //check if stock moving up or down
         if(stock.yMove < 0){
+          //moving up
           player.setTint(0x00ff00); //tint green
           score_money += -stock.yMove;
+
+          //intentionally only adding points rising stocks
+          //think it would be less fun if lost points for falling stocks.
+          score_points += -stock.yMove * stock_change_multiplier_for_points;
+
         } else if (stock.yMove > 0){
+          //moving down
           player.setTint(0xff0000); //tint red
           score_money -= stock.yMove;
         }
@@ -401,8 +417,15 @@ gameScene.update = function() {
                                  game_width, 
                                  -game_max_height + game_bottom);
     
-    score_height = -(game_bottom - game_height)
+    game_bottom_height = -(game_bottom - game_height)
   };
+
+  if (game_bottom_height > game_bottom_height_previous){
+    score_points += ((game_bottom_height - game_bottom_height_previous) 
+                     * game_bottom_height_multiplier_for_points);
+    game_bottom_height = game_bottom_height_previous;
+  };
+
 
   reset_touch_inputs();
   update_score_text();
@@ -428,8 +451,8 @@ gameScene.gameOver = function() {
     end_screen_text = this.add.text(
       -293, -270, 
       (game_over_reason 
-       + '\n\nYour score:\nProfit: $ ' + Phaser.Math.RoundTo(score_money) 
-       + '\nHeight: ' + score_height + 'm'),
+       + '\n\nYour score:\nPoints: ' + Phaser.Math.RoundTo(score_points)
+       + '\nProfit: $ ' + Phaser.Math.RoundTo(score_money)),
       {fontFamily: 'Arial, sans-serif',
        fontSize: '30px',
        backgroundColor: '#000000',
@@ -450,15 +473,15 @@ gameScene.gameOver = function() {
     if(score_money > hi_score_money){
       hi_score_money = score_money;
     };
-    if(score_height > hi_score_height){
-      hi_score_height = score_height;
+    if(score_points > hi_score_points){
+      hi_score_points = score_points;
     };
 
     //reset defaults
     minute_of_day = 0;
     game_bottom = game_height;
     score_money = 0;
-    score_height = 0;
+    score_points = 0;
     end_screen_text.visible = false;
     game_over_reason = game_over_reason_default;
 
