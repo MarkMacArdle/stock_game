@@ -1,7 +1,7 @@
 from flask import Flask, flash, jsonify, redirect, render_template, request, session
 from flask_session import Session
 from datetime import date, timedelta
-from os import listdir
+from os import listdir, path
 import requests
 import urllib.parse
 from threading import Thread
@@ -22,6 +22,9 @@ def index():
 @app.route("/stocks_and_logos", methods=["GET", "POST"])
 def stocks_and_logos():
     """Return a dict of the stocks and their logo pic filename (eg {'AAPL': 'AAPL.png', etc}"""
+
+    # Make sure data is up to date
+    update_stock_day_and_data()
 
     return jsonify(stocks_and_logos_json = {i:stocks[i]['logo'] for i in stocks})
 
@@ -83,6 +86,7 @@ def off_screened_stock():
 def trading_day():
     return latest_valid_date_str 
 
+
 def get_latest_valid_trading_date():
     """returns date string of last day with a full dataset in the form 20190314"""
     
@@ -123,33 +127,43 @@ def get_day_data(stock):
         return None
 
 
+def update_stock_day_and_data():
+    """checks if data for a new day is available and updates stock data if so"""
+
+    global latest_valid_date_str
+    global stocks
+
+    if latest_valid_date_str != get_latest_valid_trading_date():
+        latest_valid_date_str = get_latest_valid_trading_date()
+
+        #api data will be fetched in parallel on threads
+        #how to use threads taken from https://www.shanelynn.ie/using-python-threading-for-multiple-results-queue/
+        threads = []
+
+        #get data on all stocks that there is a logo for
+        for stock_logo_pic in listdir(path.dirname(path.realpath(__file__)) + "/static/assets/stock_logos"):
+            stock = stock_logo_pic.split(".")[0]
+
+            #on_screen will be flipped as stocks appear and are removed from game screen
+            stocks[stock] = {'day_data': {},
+                             'logo': stock_logo_pic,
+                             'on_screen': False}
+
+            process = Thread(target=get_day_data, args=[stock])
+            process.start()
+            threads.append(process)
+
+        #threads will only join when they have finished so this makes main thread
+        #wait for everything to finish before progressing
+        for process in threads:
+            process.join()
+
+    return None
+
+
 
 if __name__ == '__main__':
-
-    latest_valid_date_str = get_latest_valid_trading_date()
-    stocks_and_logos_dict = {i.split(".")[0]:i for i in listdir("static/assets/stock_logos")}
-
-    #api data will be fetched in parallel on threads
-    #how to use threads taken from https://www.shanelynn.ie/using-python-threading-for-multiple-results-queue/
-    threads = []
-
-    #get data on all stocks that there is a logo for
-    for stock_logo_pic in listdir("static/assets/stock_logos"):
-        stock = stock_logo_pic.split(".")[0]
-
-        #on_screen will be flipped as stocks appear and are removed from game screen
-        stocks[stock] = {'day_data': {},
-                         'logo': stock_logo_pic,
-                         'on_screen': False}
-
-        process = Thread(target=get_day_data, args=[stock])
-        process.start()
-        threads.append(process)
-
-    #threads will only join when they have finished so this makes main thread
-    #wait for everything to finish before progressing
-    for process in threads:
-        process.join()
+    update_stock_day_and_data()
 
 
     app.run(debug=False, host='0.0.0.0')
