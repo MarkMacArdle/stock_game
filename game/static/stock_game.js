@@ -19,6 +19,7 @@ var hi_score_points = score_points;
 var score_text;
 var hi_score_text;
 var datetime_text;
+var score_placing;
 var touch_input_left = false;
 var touch_input_right = false;
 var touch_input_jump = false;
@@ -26,7 +27,6 @@ var game_over_reason_default = 'You died!';
 var game_over_reason = game_over_reason_default;
 var stock_change_multiplier_for_points = 20;
 var game_bottom_height_multiplier_for_points = 1/200;
-
 
 // create a new scene named "Game"
 let gameScene = new Phaser.Scene('Game');
@@ -441,18 +441,31 @@ gameScene.gameOver = function() {
   // shake the camera
   this.cameras.main.shake(500);
 
-  // fade camera
-  //this.time.delayedCall(300, function() {
-  // this.cameras.main.fade(700);
-  //}, [], this);
+  $.ajax({
+    url: "/placing",
+    data: {"score_points": Phaser.Math.RoundTo(score_points)},
+    async:false,
+    success: function(placing) {
+      score_placing = placing;
+    }    
+  });
+
+  $.ajax({
+    url: "/save_score",
+    data: {
+      "score_points": Phaser.Math.RoundTo(score_points),
+      "score_money": Phaser.Math.RoundTo(score_money)
+    }
+  });
 
   //show end screen
   this.time.delayedCall(500, function(){
     end_screen_text = this.add.text(
-      -293, -270, 
+      -335, -310, 
       (game_over_reason 
        + '\n\nYour score:\nPoints: ' + Phaser.Math.RoundTo(score_points)
-       + '\nProfit: $ ' + Phaser.Math.RoundTo(score_money)),
+       + '\nProfit: $ ' + Phaser.Math.RoundTo(score_money)
+       + "\n\nLeaderboard position:\n" + score_placing),
       {fontFamily: 'Arial, sans-serif',
        fontSize: '30px',
        backgroundColor: '#000000',
@@ -460,6 +473,7 @@ gameScene.gameOver = function() {
        align: 'center',
        padding: 500
       }).setScrollFactor(0);
+
   }, [], this);
 
   //update text to say restarting
@@ -468,7 +482,7 @@ gameScene.gameOver = function() {
   }, [], this);
 
   // restart game
-  this.time.delayedCall(5000, function() {
+  this.time.delayedCall(6000, function() {
     //update hi scores
     if(score_money > hi_score_money){
       hi_score_money = score_money;

@@ -1,14 +1,17 @@
 from flask import Flask, flash, jsonify, redirect, render_template, request, session
 from flask_session import Session
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from os import listdir, path
 import requests
 import urllib.parse
 from threading import Thread
 from random import choice
+import pymongo
+import config
 
 # Configure application
 app = Flask(__name__)
+db = pymongo.MongoClient(config.mongo_connect_str)["mflix"]
 
 latest_valid_date_str = ''
 stocks = {}
@@ -85,6 +88,49 @@ def off_screened_stock():
 @app.route("/trading_day", methods=["GET", "POST"])
 def trading_day():
     return latest_valid_date_str 
+
+
+@app.route("/placing", methods=["GET"])
+def placing():
+    """Return placing of a given score on the leaderboard as a string"""
+
+    if request.method == "GET":
+        score_points = int(request.args.get('score_points'))
+
+        placing = str(
+            db.stocks.find({"score_points":{"$gt":score_points}}).count() + 1)
+
+        if placing == '11' or placing == '12' or placing = '13':
+            placing += 'th'
+        elif placing[-1] == '1':
+            placing += 'st'
+        elif placing[-1] == '2':
+            placing += 'nd'
+        elif placing[-1] == '3':
+            placing += 'rd'
+        else:
+            placing += 'th'
+
+        if db.stocks.find({"score_points":{"$eq":score_points}}).count() > 0:
+            placing = placing + ' (joint)'
+
+        return placing
+
+
+@app.route("/save_score", methods=["GET"])
+def save_score():
+    """Add entry for score to database"""
+
+    if request.method == "GET":
+        score_points = int(request.args.get('score_points'))
+        score_money = int(request.args.get('score_money'))
+
+        db.stocks.insert_one({
+            "score_points": score_points, 
+            "score_money": score_money,
+            "created_at": datetime.now()})
+
+        return None
 
 
 def get_latest_valid_trading_date():
