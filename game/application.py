@@ -7,11 +7,11 @@ import urllib.parse
 from threading import Thread
 from random import choice
 import pymongo
-import config
+import mongodb_config
 
 # Configure application
 app = Flask(__name__)
-db = pymongo.MongoClient(config.mongo_connect_str)["mflix"]
+db = pymongo.MongoClient(mongodb_config.connect_str)["mflix"]
 
 latest_valid_date_str = ''
 stocks = {}
@@ -100,7 +100,7 @@ def placing():
         placing = str(
             db.stocks.find({"score_points":{"$gt":score_points}}).count() + 1)
 
-        if placing == '11' or placing == '12' or placing = '13':
+        if placing == '11' or placing == '12' or placing == '13':
             placing += 'th'
         elif placing[-1] == '1':
             placing += 'st'
