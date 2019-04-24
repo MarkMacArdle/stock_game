@@ -27,6 +27,7 @@ var game_over_reason_default = 'You died!';
 var game_over_reason = game_over_reason_default;
 var stock_change_multiplier_for_points = 20;
 var game_bottom_height_multiplier_for_points = 1/200;
+var current_stocks = []
 
 // create a new scene named "Game"
 let gameScene = new Phaser.Scene('Game');
@@ -51,11 +52,14 @@ let config = {
   }
 };
 
+
 // create the game, and pass it the configuration
 let game = new Phaser.Game(config);
 
+
 function updateStockMovements(){
-  //update yMove (the amount a stock gets moved by in each update loop) of each on screen stock
+  //update yMove (the amount a stock gets moved by in each update loop) of each
+  // on screen stock
 
   stocks.getChildren().forEach(function(stock){
     //the child will be undefined if this stock has just been 
@@ -88,37 +92,35 @@ function updateStockMovements(){
 
 
 function display_new_stock(){
-    //get a stock that isn't currently on screen
-    $.ajax({
-      url: "/next_stock",
-      async: false,
-      success: function(stock_name) {
-        var x = Phaser.Math.Between(50, game_width - 50);
-        var y = Phaser.Math.Between(player.y - 300, player.y + 100);
+  //get a stock that isn't currently on screen
 
-        stock = stocks.create(x, y, stock_name).setScale(1);
-
-        stock.name = stock_name;
-        stock.yMove = 0;
-        gameScene.physics.add.collider(stock, platforms);
-
-        //options that stop stocks falling down due to gravity
-        stock.body.allowGravity = false;
-        stock.body.moves = false;
-        stock.body.velocity.y = 0;
-        stock.setFriction(1, 1);
-        stock.setImmovable(true);
-      }
-    });
-};
-
-
-function stop_displaying_stock(stock){
+  //passing current stocks as str as got errors in flask trying to use array
+  //using a delimiter so names running into each other don't accidently trigger
+  //a match
   $.ajax({
-    url: "/off_screened_stock",
-    data: {"stock": stock.name}
+    url: "/next_stock",
+    data: {"current_stocks_str": current_stocks.join(" ")},
+    async: false,
+    success: function(stock_name) {
+      current_stocks.push(stock_name);
+
+      var x = Phaser.Math.Between(50, game_width - 50);
+      var y = Phaser.Math.Between(player.y - 300, player.y + 100);
+
+      stock = stocks.create(x, y, stock_name).setScale(1);
+
+      stock.name = stock_name;
+      stock.yMove = 0;
+      gameScene.physics.add.collider(stock, platforms);
+
+      //options that stop stocks falling down due to gravity
+      stock.body.allowGravity = false;
+      stock.body.moves = false;
+      stock.body.velocity.y = 0;
+      stock.setFriction(1, 1);
+      stock.setImmovable(true);
+    }
   });
-  stocks.remove(stock, true, true); //two trues to remove from scene and destroy child
 };
 
 
@@ -159,7 +161,6 @@ function reset_touch_inputs(){
 function update_touch_input(pointer_x){
   reset_touch_inputs();
 
-  console.log('in update_touch_input. pointer_x:', pointer_x);
   //doing seperate ifs as a user could press multiple areas at once.
   if(pointer_x >= 0 && pointer_x < game_width / 3){
     touch_input_left = true;
@@ -398,7 +399,13 @@ gameScene.update = function() {
 
       //if this stock has gone off screen then delete it and create a new one
       if (stock.y >= game_bottom + 20 || stock.y < gameScene.cameras.main.worldView.top - 100){
-        stop_displaying_stock(stock);
+
+        //two trues to remove from scene and destroy child
+        stocks.remove(stock, true, true); 
+
+        //remove stock from current_stocks array
+        current_stocks.splice(current_stocks.indexOf(stock.name), 1);
+
         display_new_stock();
       };
     };
@@ -461,7 +468,7 @@ gameScene.gameOver = function() {
   //show end screen
   this.time.delayedCall(500, function(){
     end_screen_text = this.add.text(
-      -335, -310, 
+      -340, -310, 
       (game_over_reason 
        + '\n\nYour score:\nPoints: ' + Phaser.Math.RoundTo(score_points)
        + '\nProfit: $ ' + Phaser.Math.RoundTo(score_money)
@@ -498,6 +505,7 @@ gameScene.gameOver = function() {
     score_points = 0;
     end_screen_text.visible = false;
     game_over_reason = game_over_reason_default;
+    current_stocks = [];
 
     this.scene.restart();
   }, [], this);

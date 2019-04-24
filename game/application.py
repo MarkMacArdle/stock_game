@@ -9,10 +9,9 @@ from random import choice
 import pymongo
 import mongodb_config
 
-# Configure application
-app = Flask(__name__)
-db = pymongo.MongoClient(mongodb_config.connect_str)["mflix"]
 
+app = Flask(__name__)
+db = pymongo.MongoClient(mongodb_config.connect_str)["main"]
 latest_valid_date_str = ''
 stocks = {}
 
@@ -24,12 +23,15 @@ def index():
 
 @app.route("/stocks_and_logos", methods=["GET", "POST"])
 def stocks_and_logos():
-    """Return a dict of the stocks and their logo pic filename (eg {'AAPL': 'AAPL.png', etc}"""
+    """Return a dict of the stocks and their logo pic filename 
+    (eg {'AAPL': 'AAPL.png', etc}"""
 
     # Make sure data is up to date
     update_stock_day_and_data()
 
-    return jsonify(stocks_and_logos_json = {i:stocks[i]['logo'] for i in stocks})
+    return jsonify(
+        stocks_and_logos_json = {i:stocks[i]['logo'] for i in stocks}
+    )
 
 
 @app.route("/quote", methods=["GET"])
@@ -40,10 +42,12 @@ def quote():
         stock = request.args.get('stock')
         minute_of_day = int(request.args.get('minute_of_day'))
 
-        #get change by dividing current minutes stock price by previous minute
-        #for first minute of day (minute 0) there's no previous price so just return 0
-        #if no trades (volume) happened average price will be -1 and not useable
-        #need to check previous minute's volume too as don't want to divide by -1 either
+        # Get change by dividing the current minute's stock price by previous 
+        # minute's. For first minute of day (minute 0) there's no previous price
+        # so just return 0
+        # If no trades (volume) happened average price will be -1 and not 
+        # useable. Need to check previous minute's volume too as don't want to 
+        # divide by -1 either
         if (minute_of_day <= 0 
             or minute_of_day > 389 #only 390 minutes in a trading day
             or stocks[stock]['day_data'][minute_of_day]['volume'] == 0
@@ -51,38 +55,25 @@ def quote():
             return str(0)
         else:
             return str(stocks[stock]['day_data'][minute_of_day]['average']
-                       / stocks[stock]['day_data'][minute_of_day - 1]['average'] - 1)
+                       / stocks[stock]['day_data'][minute_of_day - 1]['average']
+                       - 1)
 
-        #returning as a str instead of float as got a server error when returning the float, not sure why.
+        # Returning as a str instead of float as got a server error when 
+        # returning the float, not sure why.
         return str(stocks[stock]['day_data'][minute_of_day])
 
 
-@app.route("/next_stock", methods=["GET", "POST"])
+@app.route("/next_stock", methods=["GET"])
 def next_stock():
     """Return a random stock that isn't already on screen."""
-    not_on_screen_stocks = [i for i in stocks if not stocks[i]['on_screen']]
-
-    #if no stocks left turn them all to false, prob caused by games restarting without toggling
-    if not not_on_screen_stocks:
-        for i in stocks:
-            stocks[i]['on_screen'] = False
-            not_on_screen_stocks.append(i)
-
-    chosen_stock = choice([i for i in stocks if not stocks[i]['on_screen']])
-    stocks[chosen_stock]['on_screen'] = True
-    return chosen_stock
     
-
-@app.route("/off_screened_stock", methods=["GET"])
-def off_screened_stock():
-    """Change stock's on_screen boolean to false"""
     if request.method == "GET":
-        stock = request.args.get('stock')
-        print('off screening:' + stock)
-        stocks[stock]['on_screen'] = False
+        current_stocks = request.args.get('current_stocks_str')
+        print('current_stocks type:', type(current_stocks), 'content:', current_stocks)
+        if current_stocks is None:
+            current_stocks = []
 
-        #returning stock as flask gave error if I didn't return anything or None
-        return stock 
+        return choice([i for i in stocks if i not in current_stocks])
 
 
 @app.route("/trading_day", methods=["GET", "POST"])
@@ -98,7 +89,9 @@ def placing():
         score_points = int(request.args.get('score_points'))
 
         placing = str(
-            db.stocks.find({"score_points":{"$gt":score_points}}).count() + 1)
+            db.highscores.find({"score_points":{"$gt":score_points}}).count() 
+            + 1
+        )
 
         if placing == '11' or placing == '12' or placing == '13':
             placing += 'th'
@@ -111,7 +104,8 @@ def placing():
         else:
             placing += 'th'
 
-        if db.stocks.find({"score_points":{"$eq":score_points}}).count() > 0:
+        if db.highscores.find(
+            {"score_points":{"$eq":score_points}}).count() > 0:
             placing = placing + ' (joint)'
 
         return placing
@@ -125,26 +119,30 @@ def save_score():
         score_points = int(request.args.get('score_points'))
         score_money = int(request.args.get('score_money'))
 
-        db.stocks.insert_one({
-            "score_points": score_points, 
-            "score_money": score_money,
-            "created_at": datetime.now()})
+        db.highscores.insert_one({"score_points": score_points, 
+                                  "score_money": score_money,
+                                  "created_at": datetime.now()})
 
-        return None
+        # Returning empty string to avoid Flask throwing an error
+        return ''
 
 
 def get_latest_valid_trading_date():
-    """returns date string of last day with a full dataset in the form 20190314"""
+    """returns date string of last day with a full dataset in the form 
+    20190314"""
     
-    #loop back through last 100 days until a valid date is found
-    #just chose 100 out of the air as expect to find a valid date by then
+    # Loop back through last 100 days until a valid date is found
+    # Just chose 100 out of the air as expect to find a valid date by then
     for i in range(100):
         date_str = (date.today() - timedelta(days=i)).strftime("%Y%m%d")
-        date_data = requests.get("https://api.iextrading.com/1.0/stock/aapl/chart/date/" + date_str).json()
+        date_data = requests.get(
+            "https://api.iextrading.com/1.0/stock/aapl/chart/date/" 
+            + date_str).json()
 
-        #iex api returns empty list for non trading days
-        #390 requirement for 390 minutes in a full trading day (wall street trading hours are 09.30 to 16.00)
-        #iex starts returning partial days in the middle of a trading day
+        # IEX api returns empty list for non trading days
+        # 390 requirement for 390 minutes in a full trading day (wall street 
+        # trading hours are 09.30 to 16.00). Need to test as IEX starts
+        # returning partial days in the middle of a trading day.
         if date_data != [] and len(date_data) == 390:
             break
     return date_str
@@ -182,25 +180,26 @@ def update_stock_day_and_data():
     if latest_valid_date_str != get_latest_valid_trading_date():
         latest_valid_date_str = get_latest_valid_trading_date()
 
-        #api data will be fetched in parallel on threads
-        #how to use threads taken from https://www.shanelynn.ie/using-python-threading-for-multiple-results-queue/
+        # Api data will be fetched in parallel on threads
+        # How to use threads taken from:
+        # https://www.shanelynn.ie/using-python-threading-for-multiple-results-queue/
         threads = []
 
-        #get data on all stocks that there is a logo for
-        for stock_logo_pic in listdir(path.dirname(path.realpath(__file__)) + "/static/assets/stock_logos"):
+        # Get data on all stocks that there is a logo for
+        for stock_logo_pic in listdir(path.dirname(path.realpath(__file__)) 
+                                      + "/static/assets/stock_logos"):
+
             stock = stock_logo_pic.split(".")[0]
 
-            #on_screen will be flipped as stocks appear and are removed from game screen
             stocks[stock] = {'day_data': {},
-                             'logo': stock_logo_pic,
-                             'on_screen': False}
+                             'logo': stock_logo_pic}
 
             process = Thread(target=get_day_data, args=[stock])
             process.start()
             threads.append(process)
 
-        #threads will only join when they have finished so this makes main thread
-        #wait for everything to finish before progressing
+        # Threads will only join when they have finished so this makes main 
+        # thread wait for everything to finish before progressing
         for process in threads:
             process.join()
 
