@@ -69,7 +69,7 @@ def next_stock():
     
     if request.method == "GET":
         current_stocks = request.args.get('current_stocks_str')
-        print('current_stocks type:', type(current_stocks), 'content:', current_stocks)
+        
         if current_stocks is None:
             current_stocks = []
 
@@ -156,7 +156,6 @@ def get_day_data(stock):
     # Contact API
     try:
         url = f"https://api.iextrading.com/1.0/stock/{urllib.parse.quote_plus(stock)}/chart/date/{latest_valid_date_str}"
-        print(url)
         response = requests.get(url)
         response.raise_for_status()
     except requests.RequestException:

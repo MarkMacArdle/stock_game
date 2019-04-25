@@ -71,10 +71,6 @@ function updateStockMovements(){
         success: function(percentChange) {
           // minus to get stocks moving up on screen when rising
           stock.yMove = -(parseFloat(percentChange) * move_speed_factor);
-          console.log("stock:", stock.name, 
-                      "minute_of_day:", minute_of_day, 
-                      "percentChange:", percentChange, 
-                      "yMove:", stock.yMove);
         }
       });
     }
@@ -205,7 +201,6 @@ gameScene.preload = function() {
         //https://stackoverflow.com/questions/684672/how-do-i-loop-through-or-enumerate-a-javascript-object
         if (stocks_and_logos_json.hasOwnProperty(key)) {
           path = '/static/assets/stock_logos/' + stocks_and_logos_json[key];
-          console.log('loading: key:' + key + ', path:' + path);
           gameScene.load.image(key, path);
         };
       };
