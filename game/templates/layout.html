@@ -22,19 +22,69 @@
 
         <title>Stocks Game</title>
 
+        <style type="text/css">
+            .navbar {
+                background-color: #000000 !important;
+            }
+
+            #intro_text {
+                padding-top:30px;
+            } 
+        </style>
+
     </head>
 
     <body>
 
-        <nav class="navbar navbar-expand-md navbar-light bg-light border">
-            <a class="navbar-brand" href="/">Mark MacArdle</a>
-            <button aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler" data-target="#navbar" data-toggle="collapse" type="button">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+        <nav id="myNav" class="navbar fixed-top navbar-expand-sm navbar-dark">
+            <div class="container text-center">
+                <button id="smNavBtn" class="navbar-toggler mx-auto" type="button" data-toggle="collapse" data-target="#collapsingNavbar" aria-controls="collapsingNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                    <span id="logoInitials">MM</span>
+                </button>
+                <div  id="collapsingNavbar" class="collapse navbar-collapse">
+                    <a class="navbar-brand d-none d-sm-block" href="https://markmacardle.com/index.html#jtron"><span id="logoFullName">Mark MacArdle</span></a>
+                    <ul class="navbar-nav ml-auto">
+                        <li class="nav-item active text-center">
+                            <a class="nav-link" href="https://markmacardle.com/index.html#jtron">Home<span class="sr-only">(current)</span></a>
+                        </li>
+                        <li class="nav-item text-center">
+                            <a class="nav-link" href="https://medium.com/@macardle" target="_blank">Blog</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </nav>
 
         <main class="container p-5">
+            <div class="container" id="intro_text">
+                <h1>Stock Jumper</h4>
+                <p>
+                    <strong>Can you make it through a trading day on the Nasdaq 100?</strong>
+                    <br>
+                    Jump up the stocks for points or sit on a rising stock for both cash and accelerated points.
+                    <br>
+                    Don't fall down though! Hit the bottom of the screen and you'll die!
+                    <br>
+                </p>
+
+                <p>
+                    Stock movements are driven by <strong>real stock market data</strong> from <a href="https://iextrading.com/">iextrading.com</a> for the last full trading day.
+                </p>
+
+                <p>
+                    <br>
+                    <strong>Directions</strong>
+                    <br>
+                    Computer users play with arrow keys.
+                    <br>
+                    Mobile users tap in centre to jump and tap sides to move left or right.
+                </p>
+            </div>
+
+
             {% block main %}{% endblock %}
+
+
         </main>
 
     </body>
