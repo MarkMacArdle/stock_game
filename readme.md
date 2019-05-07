@@ -1,5 +1,7 @@
 # Stock Market Gamification
 
+[Playable version here](http://ec2co-ecsel-5zub5659xyt4-1820632623.us-east-1.elb.amazonaws.com:5000/)
+
 Real stock market data from the last full trading day is used to move the logos
 of companies on the Nasdaq 100 up and down on screen. You play a little spaceman
 who has to try jump up these stocks for points and sit on rising stocks to make
