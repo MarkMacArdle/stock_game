@@ -1,2 +1,5 @@
 mongodb_config.py
 __pycache__
+
+# google drive sync keeps adding .ini files to each folder
+*.ini

@@ -1,7 +1,7 @@
 from flask import Flask, flash, jsonify, redirect, render_template, request, session
 from flask_session import Session
 from datetime import date, timedelta, datetime
-from os import listdir, path
+from os import listdir, path, environ
 import requests
 import urllib.parse
 from threading import Thread
@@ -209,7 +209,8 @@ def update_stock_day_and_data():
 if __name__ == '__main__':
     update_stock_day_and_data()
 
-
-    app.run(debug=False, host='0.0.0.0')
+    # so right port will be used on heroku (which has variable ports)
+    port = int(environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
 
 
